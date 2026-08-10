@@ -1,0 +1,107 @@
+
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#173c92" />
+  <title>SUWON LINEUP</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .formation-families{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:11px}
+    .family{border:1px solid #dce6fa;background:#fff;color:#657395;border-radius:8px;padding:8px 4px;font-size:12px;font-weight:800}
+    .family.active{background:#eaf1ff;border-color:#8cacf1;color:#214eaf}
+    .phase-tabs{margin-bottom:9px}
+    .bench-summary{margin:0 0 25px;padding:12px 13px;background:#fff;border:1px solid #dce6fa;border-radius:10px;color:#102054}
+    .bench-summary strong{font-size:12px;color:#214eaf}
+    .bench-summary p{margin:7px 0 0;font-size:12px;line-height:1.65;color:#536887}
+    .assignment-card{margin:0 0 12px;padding:12px;background:#eef4ff;border:1px solid #c9daf8;border-radius:10px}
+    .assignment-card strong{display:block;font-size:12px;color:#214eaf}
+    .assignment-card p{margin:5px 0 9px;font-size:11px;line-height:1.45;color:#5d7194}
+    .starter-picker{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+    .starter-pick{flex:0 0 auto;border:1px solid #b8caed;background:#fff;border-radius:15px;padding:6px 9px;color:#294a8f;font-size:11px;font-weight:700}
+    .starter-pick.assigned{background:#dce9ff;border-color:#88a9e8}
+    .starter-picker .empty-selection{padding:3px 0;font-size:11px}
+    .field-player.slot{border:0;background:transparent;padding:0;cursor:pointer;font-family:inherit}
+    .field-player.slot .shirt{display:block}
+    .field-player.empty-slot .shirt{background:#ffffff1d;border:1px dashed #ffffffb3;color:#fff;box-shadow:none;padding-top:11px}
+    .field-player.empty-slot span{color:#e8fff0;font-size:9px}
+    .field-player.slot.active-slot .shirt{outline:3px solid #f8d851;outline-offset:2px}
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">S</span><span>SUWON<br><b>LINEUP</b></span></div>
+      <button class="reset" id="resetBtn" type="button" aria-label="선택 초기화">초기화</button>
+    </header>
+
+    <section class="intro">
+      <p class="eyebrow">SUWON SAMSUNG BLUEWINGS</p>
+      <h1>나만의 베스트<br>일레븐을 만들어보세요</h1>
+      <p>선발 11명과 교체 명단 9명을 고른 뒤, 공격과 수비 전술을 각각 설정하세요.</p>
+    </section>
+
+    <section class="status-card" aria-label="선수 선택 현황">
+      <button class="status-item active" type="button" data-mode="starters"><strong id="starterCount">0</strong><span>선발 / 11</span></button>
+      <span class="status-divider"></span>
+      <button class="status-item" type="button" data-mode="subs"><strong id="subCount">0</strong><span>교체 / 9</span></button>
+    </section>
+
+    <section class="tactics">
+      <div class="tactic-heading"><span>전술 보드</span><span class="live-dot">LIVE</span></div>
+      <div class="phase-tabs" role="tablist" aria-label="전술 상황">
+        <button class="phase active" type="button" data-phase="attack">공격 시</button>
+        <button class="phase" type="button" data-phase="defense">수비 시</button>
+      </div>
+      <div class="formation-families" role="tablist" aria-label="수비 라인 선택">
+        <button class="family" type="button" data-family="back3">백3</button>
+        <button class="family active" type="button" data-family="back4">백4</button>
+        <button class="family" type="button" data-family="back5">백5</button>
+      </div>
+      <div class="formation-picker">
+        <label for="formation">포메이션</label>
+        <select id="formation" aria-label="포메이션 선택"></select>
+      </div>
+      <div class="assignment-card">
+        <strong id="assignmentTitle">공격 라인업 배치</strong>
+        <p id="assignmentHint">피치의 포지션을 누른 뒤, 아래 선발 선수를 선택하세요.</p>
+        <div class="starter-picker" id="starterPicker"></div>
+      </div>
+      <div class="pitch-wrap">
+        <div class="pitch" id="pitch" aria-label="세로형 축구장">
+          <div class="goal top-goal"></div><div class="penalty top-box"></div><div class="six top-six"></div>
+          <div class="center-circle"></div><div class="halfway"></div>
+          <div class="goal bottom-goal"></div><div class="penalty bottom-box"></div><div class="six bottom-six"></div>
+          <div id="pitchPlayers"></div>
+          <div class="pitch-empty" id="pitchEmpty">선발 선수를 선택하면<br>그라운드에 배치됩니다</div>
+        </div>
+      </div>
+      <p class="formation-note" id="formationNote">공격 전술을 선택하세요</p>
+      <div class="bench-summary" aria-live="polite">
+        <strong id="benchTitle">교체 명단 0/9</strong>
+        <p id="benchSummary">교체: 아직 선택된 선수가 없습니다.</p>
+      </div>
+    </section>
+
+    <section class="roster-section">
+      <div class="section-title"><h2 id="rosterTitle">선발 선수 선택</h2><span id="rosterHint">최대 11명</span></div>
+      <div class="filters" id="filters">
+        <button class="filter active" type="button" data-filter="전체">전체</button>
+        <button class="filter" type="button" data-filter="GK">GK</button>
+        <button class="filter" type="button" data-filter="DF">DF</button>
+        <button class="filter" type="button" data-filter="MF">MF</button>
+        <button class="filter" type="button" data-filter="FW">FW</button>
+      </div>
+      <div class="roster" id="roster"></div>
+    </section>
+
+    <section class="selection-section">
+      <div class="section-title"><h2>선택된 명단</h2><span>탭하여 제외</span></div>
+      <div class="selection-list" id="selectionList"></div>
+    </section>
+  </main>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
