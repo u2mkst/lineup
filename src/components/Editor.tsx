@@ -1,21 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { frameStart, sampleAt, totalDuration } from '../lib/anim';
 import { rolesFor } from '../lib/layout';
 import { buildScene } from '../lib/scene';
 import { useStore } from '../lib/store';
-import { ExportSheet } from './ExportSheet';
+import { IconBack, IconRedo, IconUndo } from './Icons';
 import { LineupPanel } from './LineupPanel';
 import { OppEditor } from './OppEditor';
-import { Pitch } from './Pitch';
+import { Pitch, type Tool } from './Pitch';
 import { PlayerPicker } from './PlayerPicker';
 import { RosterEditor } from './RosterEditor';
 import { FrameBar, TacticPanel } from './TacticPanel';
+
+const ExportSheet = lazy(() => import('./ExportSheet').then(m => ({ default: m.ExportSheet })));
 
 type Mode = 'lineup' | 'tactic';
 
 export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
   const tactic = useStore(s => s.tactics.find(t => t.id === id));
   const roster = useStore(s => s.roster);
+  const canUndo = useStore(s => (s.history[id]?.past.length ?? 0) > 0);
+  const canRedo = useStore(s => (s.history[id]?.future.length ?? 0) > 0);
   const store = useStore();
 
   const [mode, setMode] = useState<Mode>('lineup');
@@ -24,6 +28,7 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [showTrails, setShowTrails] = useState(true);
+  const [tool, setTool] = useState<Tool>('move');
   const [pick, setPick] = useState<string | null>(null);
   const [oppEdit, setOppEdit] = useState<string | null>(null);
   const [rosterOpen, setRosterOpen] = useState(false);
@@ -32,6 +37,7 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
   const frames = tactic?.frames;
   const total = frames ? totalDuration(frames.length) : 0;
   const clampedFrame = frames ? Math.min(frameIndex, frames.length - 1) : 0;
+  const modalOpen = !!pick || !!oppEdit || rosterOpen || exportOpen;
 
   // Playback clock.
   const clock = useRef({ last: 0, time: 0 });
@@ -59,12 +65,42 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
     if (mode === 'lineup') return buildScene(tactic, roster, tactic.frames[0].positions, null);
     if (time != null) {
       const s = sampleAt(tactic.frames, time);
-      return buildScene(tactic, roster, s.positions, s.ball);
+      return buildScene(tactic, roster, s.positions, s.ball, null, s.drawings);
     }
     const f = tactic.frames[clampedFrame];
     const prev = showTrails && clampedFrame > 0 ? tactic.frames[clampedFrame - 1].positions : null;
-    return buildScene(tactic, roster, f.positions, f.ball, prev);
+    return buildScene(tactic, roster, f.positions, f.ball, prev, f.drawings.map(d => ({ ...d, alpha: 1 })));
   }, [tactic, roster, mode, time, clampedFrame, showTrails]);
+
+  const togglePlay = () => {
+    if (!tactic) return;
+    if (playing) { setPlaying(false); return; }
+    const last = tactic.frames.length - 1;
+    clock.current.time = time != null && time < total ? time : clampedFrame >= last ? 0 : frameStart(clampedFrame);
+    setTime(clock.current.time);
+    setTool('move');
+    setPlaying(true);
+  };
+
+  // Keyboard shortcuts (desktop): undo/redo, space to play.
+  const shortcuts = useRef({ undo: () => {}, redo: () => {}, play: () => {} });
+  shortcuts.current = {
+    undo: () => canUndo && store.undo(id),
+    redo: () => canRedo && store.redo(id),
+    play: () => mode === 'tactic' && (tactic?.frames.length ?? 0) > 1 && togglePlay(),
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (modalOpen || el.closest('input, textarea, select, [contenteditable]')) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); (e.shiftKey ? shortcuts.current.redo : shortcuts.current.undo)(); }
+      else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); shortcuts.current.redo(); }
+      else if (e.key === ' ' && el === document.body) { e.preventDefault(); shortcuts.current.play(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [modalOpen]);
 
   if (!tactic || !scene) return <div className="empty"><p>전술을 찾을 수 없어요.</p><button className="btn" onClick={onBack}>목록으로</button></div>;
 
@@ -73,17 +109,10 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
   const exportFrame = time != null ? sampleAt(tactic.frames, time).frameIndex : clampedFrame;
 
   const switchMode = (m: Mode) => {
-    setMode(m); setPlaying(false); setTime(null);
+    setMode(m); setPlaying(false); setTime(null); setTool('move');
     if (m === 'lineup') setFrameIndex(0);
   };
   const selectFrame = (i: number) => { setPlaying(false); setTime(null); setFrameIndex(i); };
-  const togglePlay = () => {
-    if (playing) { setPlaying(false); return; }
-    const last = tactic.frames.length - 1;
-    clock.current.time = time != null && time < total ? time : clampedFrame >= last ? 0 : frameStart(clampedFrame);
-    setTime(clock.current.time);
-    setPlaying(true);
-  };
   const scrub = (ms: number) => { setPlaying(false); clock.current.time = ms; setTime(ms); };
 
   const onTapToken = (tokenId: string) => {
@@ -99,9 +128,11 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
   return (
     <div className="editor">
       <header className="topbar">
-        <button className="icon-btn" onClick={onBack} aria-label="목록으로">←</button>
+        <button className="icon-btn" onClick={onBack} aria-label="목록으로"><IconBack /></button>
         <input className="title-in" value={tactic.name} maxLength={24} aria-label="전술 이름"
-          onChange={e => store.edit(id, t => { t.name = e.target.value; })} />
+          onChange={e => store.edit(id, t => { t.name = e.target.value; }, 'name')} />
+        <button className="icon-btn" onClick={() => store.undo(id)} disabled={!canUndo} aria-label="되돌리기" title="되돌리기 (Ctrl+Z)"><IconUndo /></button>
+        <button className="icon-btn" onClick={() => store.redo(id)} disabled={!canRedo} aria-label="다시 실행" title="다시 실행 (Ctrl+Shift+Z)"><IconRedo /></button>
         <button className="btn sm primary" onClick={() => setExportOpen(true)}>내보내기</button>
       </header>
 
@@ -115,11 +146,14 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
           <Pitch
             scene={scene}
             interactive={editable}
+            tool={mode === 'tactic' ? tool : 'move'}
             ballDraggable={mode === 'tactic'}
             selectedId={pick ?? oppEdit}
             onTapToken={onTapToken}
             onMoveToken={(tk, pt) => store.moveToken(id, mode === 'lineup' ? 0 : clampedFrame, tk, pt)}
             onMoveBall={pt => store.moveBall(id, clampedFrame, pt)}
+            onDraw={d => store.addDrawing(id, clampedFrame, d)}
+            onErase={did => store.removeDrawing(id, clampedFrame, did)}
           />
           {mode === 'tactic' && <FrameBar tactic={tactic} frameIndex={clampedFrame} time={time} onSelectFrame={selectFrame} />}
           {mode === 'tactic' && (
@@ -133,8 +167,8 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
           {mode === 'lineup'
             ? <LineupPanel tactic={tactic} roster={roster} onOpenRoster={() => setRosterOpen(true)} />
             : <TacticPanel tactic={tactic} frameIndex={clampedFrame} playing={playing} time={time} speed={speed}
-                showTrails={showTrails} onSelectFrame={selectFrame} onTogglePlay={togglePlay} onScrub={scrub}
-                onSpeed={setSpeed} onTrails={setShowTrails} />}
+                showTrails={showTrails} tool={tool} onTool={setTool} onSelectFrame={selectFrame} onTogglePlay={togglePlay}
+                onScrub={scrub} onSpeed={setSpeed} onTrails={setShowTrails} />}
         </div>
       </div>
 
@@ -153,7 +187,11 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
         />
       )}
       {rosterOpen && <RosterEditor onClose={() => setRosterOpen(false)} />}
-      {exportOpen && <ExportSheet tactic={tactic} roster={roster} frameIndex={exportFrame} speed={speed} onClose={() => setExportOpen(false)} />}
+      {exportOpen && (
+        <Suspense fallback={null}>
+          <ExportSheet tactic={tactic} roster={roster} frameIndex={exportFrame} speed={speed} onClose={() => setExportOpen(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }

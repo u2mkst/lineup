@@ -8,9 +8,20 @@ export interface Player {
   pos: Pos;
 }
 
+export type DrawKind = 'run' | 'pass' | 'zone';
+
+/** Annotation on a frame. For `zone`, `a` is the centre and `b` a point on its edge. */
+export interface Drawing {
+  id: string;
+  kind: DrawKind;
+  a: Pt;
+  b: Pt;
+}
+
 export interface Frame {
   id: string;
   note: string;
+  drawings: Drawing[];
   /** token id -> normalized (0..1) pitch position */
   positions: Record<string, Pt>;
   ball: Pt;
@@ -56,8 +67,13 @@ export interface SceneToken {
   empty: boolean;
 }
 
+export interface SceneDrawing extends Drawing {
+  alpha: number;
+}
+
 export interface Scene {
   tokens: SceneToken[];
   ball: Pt | null;
   trails: { id: string; from: Pt; to: Pt; color: string }[];
+  drawings: SceneDrawing[];
 }

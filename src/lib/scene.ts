@@ -1,5 +1,5 @@
 import { rolesFor, tokenIds } from './layout';
-import type { Player, Pt, Scene, SceneToken, Tactic } from '../types';
+import type { Player, Pt, Scene, SceneDrawing, SceneToken, Tactic } from '../types';
 
 export function buildScene(
   tactic: Tactic,
@@ -7,6 +7,7 @@ export function buildScene(
   positions: Record<string, Pt>,
   ball: Pt | null,
   prevPositions?: Record<string, Pt> | null,
+  drawings: SceneDrawing[] = [],
 ): Scene {
   const tokens: SceneToken[] = [];
   const usRoles = rolesFor(tactic.us.formation);
@@ -43,7 +44,7 @@ export function buildScene(
       }
     }
   }
-  return { tokens, ball, trails };
+  return { tokens, ball, trails, drawings };
 }
 
 /** Roster players that are not on the pitch -> bench (교체 명단). */
@@ -57,4 +58,11 @@ export function inkFor(hex: string): string {
   const n = parseInt(hex.slice(1), 16);
   const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
   return lum > 0.62 ? '#0b1f17' : '#ffffff';
+}
+
+/** Lighten (amt > 0) or darken (amt < 0) a #rrggbb colour. */
+export function shade(hex: string, amt: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (v: number) => Math.round(Math.min(255, Math.max(0, amt >= 0 ? v + (255 - v) * amt : v * (1 + amt))));
+  return `rgb(${ch((n >> 16) & 255)},${ch((n >> 8) & 255)},${ch(n & 255)})`;
 }

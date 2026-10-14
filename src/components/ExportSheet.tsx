@@ -3,6 +3,10 @@ import {
   canShareFile, download, exportFramePng, exportGif, exportLineupPng, exportVideo, share, videoSupported,
   type Output,
 } from '../lib/exporters';
+import { THEMES, themeById } from '../lib/render';
+import { buildPayload, encodePayload, shareUrl } from '../lib/share';
+import { toast } from '../lib/toast';
+import { IconDownload, IconLink, IconShare } from './Icons';
 import { Sheet } from './Sheet';
 import type { Player, Tactic } from '../types';
 
@@ -20,6 +24,14 @@ export function ExportSheet({ tactic, roster, frameIndex, speed, onClose }: Prop
   const [busy, setBusy] = useState<{ kind: Kind; progress: number | null } | null>(null);
   const [result, setResult] = useState<{ out: Output; url: string; sharable: boolean } | null>(null);
   const [error, setError] = useState('');
+  const [themeId, setThemeId] = useState(() => {
+    try { return localStorage.getItem('chukgubang:theme') ?? 'dark'; } catch { return 'dark'; }
+  });
+  const theme = themeById(themeId);
+  const pickTheme = (id: string) => {
+    setThemeId(id);
+    try { localStorage.setItem('chukgubang:theme', id); } catch { /* ignore */ }
+  };
   const multi = tactic.frames.length > 1;
 
   useEffect(() => () => { if (result) URL.revokeObjectURL(result.url); }, [result]);
@@ -30,10 +42,10 @@ export function ExportSheet({ tactic, roster, frameIndex, speed, onClose }: Prop
     const onProgress = (p: number) => setBusy({ kind, progress: p });
     try {
       const out =
-        kind === 'lineup' ? await exportLineupPng(tactic, roster)
-        : kind === 'frame' ? await exportFramePng(tactic, roster, frameIndex)
-        : kind === 'gif' ? await exportGif(tactic, roster, speed, onProgress)
-        : await exportVideo(tactic, roster, speed, onProgress);
+        kind === 'lineup' ? await exportLineupPng(tactic, roster, theme)
+        : kind === 'frame' ? await exportFramePng(tactic, roster, frameIndex, theme)
+        : kind === 'gif' ? await exportGif(tactic, roster, speed, theme, onProgress)
+        : await exportVideo(tactic, roster, speed, theme, onProgress);
       setResult({ out, url: URL.createObjectURL(out.blob), sharable: canShareFile(out) });
     } catch (e) {
       setError((e as Error).message || '내보내기에 실패했어요');
@@ -47,6 +59,20 @@ export function ExportSheet({ tactic, roster, frameIndex, speed, onClose }: Prop
     try { await share(result.out, tactic.name); } catch { setError('공유하지 못했어요. 저장 후 카카오톡에서 직접 보내 주세요.'); }
   };
 
+  const copyLink = async () => {
+    try {
+      const url = shareUrl(await encodePayload(buildPayload(tactic, roster)));
+      if (navigator.share && !navigator.canShare?.({ files: [new File([], 'a.png', { type: 'image/png' })] })) {
+        await navigator.share({ title: tactic.name, url }).catch(e => { if ((e as DOMException).name !== 'AbortError') throw e; });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast('전술 링크를 복사했어요');
+      }
+    } catch {
+      toast('링크를 만들지 못했어요', 'error');
+    }
+  };
+
   const items: { kind: Kind; title: string; desc: string; disabled?: boolean }[] = [
     { kind: 'lineup', title: '라인업 이미지', desc: '선발 11명 + 교체 명단 (PNG)' },
     { kind: 'frame', title: `장면 ${frameIndex + 1} 이미지`, desc: '지금 보고 있는 전술 장면 (PNG)' },
@@ -56,6 +82,14 @@ export function ExportSheet({ tactic, roster, frameIndex, speed, onClose }: Prop
 
   return (
     <Sheet title="내보내기" onClose={onClose}>
+      <div className="theme-row" role="radiogroup" aria-label="이미지 템플릿">
+        <span className="muted small">템플릿</span>
+        {THEMES.map(t => (
+          <button key={t.id} role="radio" aria-checked={t.id === themeId} className={`theme-chip${t.id === themeId ? ' on' : ''}`} onClick={() => pickTheme(t.id)}>
+            <i style={{ background: `linear-gradient(135deg, ${t.bg[0]}, ${t.bg[1]})` }} />{t.label}
+          </button>
+        ))}
+      </div>
       <div className="export-list">
         {items.map(it => (
           <button key={it.kind} className="export-row" disabled={!!busy || it.disabled} onClick={() => run(it.kind)}>
@@ -64,6 +98,8 @@ export function ExportSheet({ tactic, roster, frameIndex, speed, onClose }: Prop
           </button>
         ))}
       </div>
+
+      <button className="btn ghost link-btn" onClick={copyLink}><IconLink width={16} height={16} /> 전술을 링크로 공유 <span className="muted small">(받은 사람이 열어서 수정 가능)</span></button>
 
       {busy && (
         <div className="progress" role="status">
@@ -79,8 +115,8 @@ export function ExportSheet({ tactic, roster, frameIndex, speed, onClose }: Prop
             ? <video src={result.url} controls playsInline muted loop autoPlay />
             : <img src={result.url} alt="내보내기 미리보기" />}
           <div className="result-actions">
-            <button className="btn" onClick={() => download(result.out)}>저장</button>
-            {result.sharable && <button className="btn kakao" onClick={doShare}>공유 · 카카오톡</button>}
+            <button className="btn" onClick={() => download(result.out)}><IconDownload width={16} height={16} /> 저장</button>
+            {result.sharable && <button className="btn kakao" onClick={doShare}><IconShare width={16} height={16} /> 공유 · 카카오톡</button>}
           </div>
           <p className="muted small">
             {result.sharable

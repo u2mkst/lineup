@@ -1,19 +1,28 @@
 import { useEffect, useState } from 'react';
 import { Editor } from './components/Editor';
 import { Home } from './components/Home';
+import { SharedImport } from './components/SharedImport';
 
-const parse = () => {
-  const m = location.hash.match(/^#\/t\/(.+)$/);
-  return m ? decodeURIComponent(m[1]) : null;
+type Route = { kind: 'home' } | { kind: 'tactic'; id: string } | { kind: 'shared'; code: string };
+
+const parse = (): Route => {
+  const t = location.hash.match(/^#\/t\/(.+)$/);
+  if (t) return { kind: 'tactic', id: decodeURIComponent(t[1]) };
+  const s = location.hash.match(/^#\/s\/(.+)$/);
+  if (s) return { kind: 'shared', code: s[1] };
+  return { kind: 'home' };
 };
 
 export default function App() {
-  const [id, setId] = useState<string | null>(parse);
+  const [route, setRoute] = useState<Route>(parse);
   useEffect(() => {
-    const on = () => setId(parse());
+    const on = () => setRoute(parse());
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);
-  const open = (next: string | null) => { location.hash = next ? `#/t/${encodeURIComponent(next)}` : '#/'; };
-  return id ? <Editor key={id} id={id} onBack={() => open(null)} /> : <Home onOpen={open} />;
+  const open = (id: string | null) => { location.hash = id ? `#/t/${encodeURIComponent(id)}` : '#/'; };
+
+  if (route.kind === 'tactic') return <Editor key={route.id} id={route.id} onBack={() => open(null)} />;
+  if (route.kind === 'shared') return <SharedImport code={route.code} onOpen={open} onHome={() => open(null)} />;
+  return <Home onOpen={open} />;
 }

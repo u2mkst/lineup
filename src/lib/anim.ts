@@ -1,4 +1,4 @@
-import type { Frame, Pt } from '../types';
+import type { Frame, Pt, SceneDrawing } from '../types';
 
 /** ms spent standing still on a frame, and ms spent travelling to the next. */
 export const HOLD = 700;
@@ -24,7 +24,12 @@ export interface Sample {
   noteIndex: number;
   /** frame we are on, or have most recently left */
   frameIndex: number;
+  /** annotations to show, cross-fading while players travel */
+  drawings: SceneDrawing[];
 }
+
+const withAlpha = (f: Frame | undefined, alpha: number): SceneDrawing[] =>
+  alpha <= 0.01 || !f ? [] : f.drawings.map(d => ({ ...d, alpha }));
 
 export function sampleAt(frames: Frame[], ms: number): Sample {
   const last = frames.length - 1;
@@ -32,7 +37,7 @@ export function sampleAt(frames: Frame[], ms: number): Sample {
   const i = Math.min(Math.floor(clamped / STEP), last);
   const local = clamped - i * STEP;
   if (i >= last || local <= HOLD) {
-    return { positions: frames[i].positions, ball: frames[i].ball, noteIndex: i, frameIndex: i };
+    return { positions: frames[i].positions, ball: frames[i].ball, noteIndex: i, frameIndex: i, drawings: withAlpha(frames[i], 1) };
   }
   const t = ease((local - HOLD) / MOVE);
   const a = frames[i];
@@ -41,5 +46,7 @@ export function sampleAt(frames: Frame[], ms: number): Sample {
   for (const id of Object.keys(a.positions)) {
     positions[id] = lerp(a.positions[id], b.positions[id] ?? a.positions[id], t);
   }
-  return { positions, ball: lerp(a.ball, b.ball, t), noteIndex: i + 1, frameIndex: t > 0.5 ? i + 1 : i };
+  // Old annotations fade out in the first third of the move, new ones fade in during the last third.
+  const drawings = [...withAlpha(a, 1 - t * 3), ...withAlpha(b, t * 3 - 2)];
+  return { positions, ball: lerp(a.ball, b.ball, t), noteIndex: i + 1, frameIndex: t > 0.5 ? i + 1 : i, drawings };
 }

@@ -20,7 +20,7 @@ export function tokenIds(side: TokenSide): string[] {
  */
 export function layoutFormation(formation: string, side: TokenSide, hasOpp: boolean): Pt[] {
   const lines = (formationRoles[formation] ?? formationRoles['4-2-3-1']).map(l => l.length);
-  const [gk, defY, atkY] = hasOpp ? [0.95, 0.86, 0.54] : [0.93, 0.78, 0.14];
+  const [gk, defY, atkY] = hasOpp ? [0.925, 0.84, 0.54] : [0.91, 0.78, 0.14];
   const pts: Pt[] = [{ x: 0.5, y: gk }];
   lines.forEach((n, li) => {
     const y = lines.length === 1 ? defY : defY + ((atkY - defY) * li) / (lines.length - 1);

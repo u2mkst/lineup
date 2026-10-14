@@ -1,10 +1,18 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { Toaster } from './components/Toaster';
+import { registerServiceWorker } from './lib/pwa';
 import './styles.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+    <Toaster />
   </StrictMode>,
 );
+
+registerServiceWorker();

@@ -1,6 +1,6 @@
 import { GIFEncoder, applyPalette, quantize } from 'gifenc';
 import { sampleAt, totalDuration } from './anim';
-import { drawFrameCard, frameCardSize, renderLineupCard } from './render';
+import { drawFrameCard, frameCardSize, renderLineupCard, type Theme } from './render';
 import { buildScene } from './scene';
 import type { Player, Tactic } from '../types';
 
@@ -16,8 +16,8 @@ const toBlob = (c: HTMLCanvasElement) =>
 const tick = () => new Promise<void>(r => setTimeout(r, 0));
 const safeName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, '').trim() || '축구방';
 
-export async function exportLineupPng(tactic: Tactic, roster: Player[]): Promise<Output> {
-  const blob = await toBlob(renderLineupCard(tactic, roster));
+export async function exportLineupPng(tactic: Tactic, roster: Player[], theme: Theme): Promise<Output> {
+  const blob = await toBlob(renderLineupCard(tactic, roster, theme));
   return { blob, filename: `${safeName(tactic.name)}-라인업.png`, kind: 'image' };
 }
 
@@ -28,22 +28,24 @@ function frameCanvas(width: number) {
   return { canvas, ctx: canvas.getContext('2d', { willReadFrequently: true })! };
 }
 
-function drawAt(ctx: CanvasRenderingContext2D, tactic: Tactic, roster: Player[], ms: number, width: number) {
+function drawAt(ctx: CanvasRenderingContext2D, tactic: Tactic, roster: Player[], ms: number, width: number, theme: Theme) {
   const s = sampleAt(tactic.frames, ms);
-  const scene = buildScene(tactic, roster, s.positions, s.ball);
+  const scene = buildScene(tactic, roster, s.positions, s.ball, null, s.drawings);
   drawFrameCard(ctx, tactic, scene, {
     width,
+    theme,
     label: `장면 ${Math.min(s.noteIndex + 1, tactic.frames.length)} / ${tactic.frames.length}`,
     note: tactic.frames[s.noteIndex]?.note ?? '',
   });
 }
 
-export async function exportFramePng(tactic: Tactic, roster: Player[], index: number): Promise<Output> {
+export async function exportFramePng(tactic: Tactic, roster: Player[], index: number, theme: Theme): Promise<Output> {
   const f = tactic.frames[index];
   const { canvas, ctx } = frameCanvas(1080);
   const prev = tactic.frames[index - 1]?.positions ?? null;
-  drawFrameCard(ctx, tactic, buildScene(tactic, roster, f.positions, f.ball, prev), {
+  drawFrameCard(ctx, tactic, buildScene(tactic, roster, f.positions, f.ball, prev, f.drawings.map(d => ({ ...d, alpha: 1 }))), {
     width: 1080,
+    theme,
     label: `장면 ${index + 1} / ${tactic.frames.length}`,
     note: f.note,
   });
@@ -51,7 +53,7 @@ export async function exportFramePng(tactic: Tactic, roster: Player[], index: nu
 }
 
 export async function exportGif(
-  tactic: Tactic, roster: Player[], speed: number, onProgress: (p: number) => void,
+  tactic: Tactic, roster: Player[], speed: number, theme: Theme, onProgress: (p: number) => void,
 ): Promise<Output> {
   const width = 480;
   const fps = 15;
@@ -61,7 +63,7 @@ export async function exportGif(
   const count = Math.max(2, Math.ceil(total / speed / step));
   const gif = GIFEncoder();
   for (let i = 0; i < count; i++) {
-    drawAt(ctx, tactic, roster, i * step * speed, width);
+    drawAt(ctx, tactic, roster, i * step * speed, width, theme);
     const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const palette = quantize(data, 256, { format: 'rgb444' });
     const index = applyPalette(data, palette, 'rgb444');
@@ -78,7 +80,7 @@ export function videoSupported(): boolean {
 }
 
 export async function exportVideo(
-  tactic: Tactic, roster: Player[], speed: number, onProgress: (p: number) => void,
+  tactic: Tactic, roster: Player[], speed: number, theme: Theme, onProgress: (p: number) => void,
 ): Promise<Output> {
   const width = 720;
   const { canvas, ctx } = frameCanvas(width);
@@ -88,7 +90,7 @@ export async function exportVideo(
   const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
   const total = (totalDuration(tactic.frames.length) + 800) / speed;
 
-  drawAt(ctx, tactic, roster, 0, width);
+  drawAt(ctx, tactic, roster, 0, width, theme);
   const stream = canvas.captureStream(30);
   const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 3_000_000 });
   const chunks: Blob[] = [];
@@ -100,7 +102,7 @@ export async function exportVideo(
     const t0 = performance.now();
     const loop = () => {
       const el = performance.now() - t0;
-      drawAt(ctx, tactic, roster, el * speed, width);
+      drawAt(ctx, tactic, roster, el * speed, width, theme);
       onProgress(Math.min(1, el / total));
       if (el >= total) res(); else requestAnimationFrame(loop);
     };
