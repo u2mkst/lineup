@@ -31,3 +31,11 @@ export function layoutFormation(formation: string, side: TokenSide, hasOpp: bool
   });
   return side === 'us' ? pts : pts.map(p => ({ x: 1 - p.x, y: 1 - p.y }));
 }
+
+/** Token ids grouped by line, defence first; the goalkeeper is kept apart. */
+export function lineTokenIds(formation: string, side: TokenSide): { gk: string; lines: string[][] } {
+  const prefix = side === 'us' ? 'u' : 'o';
+  const sizes = (formationRoles[formation] ?? formationRoles['4-2-3-1']).map(l => l.length);
+  let next = 1;
+  return { gk: `${prefix}0`, lines: sizes.map(n => Array.from({ length: n }, () => `${prefix}${next++}`)) };
+}

@@ -9,7 +9,7 @@ const R = 24;
 const clamp = (v: number) => Math.min(0.97, Math.max(0.03, v));
 export const PASS_COLOR = '#fde047';
 
-export type Tool = 'move' | DrawKind | 'erase';
+export type Tool = 'move' | 'select' | DrawKind | 'erase';
 
 interface Props {
   scene: Scene;
@@ -18,6 +18,8 @@ interface Props {
   /** ball can be dragged (tactic mode only) */
   ballDraggable?: boolean;
   selectedId?: string | null;
+  /** players picked with the select tool */
+  selectedIds?: string[];
   mini?: boolean;
   onMoveToken?: (id: string, pt: Pt) => void;
   onMoveBall?: (pt: Pt) => void;
@@ -26,10 +28,14 @@ interface Props {
   onErase?: (id: string) => void;
   /** bend a movement trail; `null` straightens it again */
   onVia?: (id: string, pt: Pt | null) => void;
+  onSelect?: (ids: string[]) => void;
+  /** group drag with the select tool */
+  onMoveMany?: (moves: Record<string, Pt>) => void;
 }
 
-type Drag = { id: string; pt: Pt; sx: number; sy: number; moved: boolean };
+type Drag = { id: string; pt: Pt; start: Pt; sx: number; sy: number; moved: boolean; group: string[] };
 type Draft = { kind: DrawKind; a: Pt; b: Pt };
+type Marquee = { a: Pt; b: Pt };
 
 function PitchLines() {
   const stroke = { stroke: 'rgba(255,255,255,.85)', strokeWidth: 3, fill: 'none' } as const;
@@ -106,14 +112,16 @@ function DrawingShape({ kind, a, b, alpha = 1 }: { kind: DrawKind; a: Pt; b: Pt;
 }
 
 export function Pitch({
-  scene, interactive, tool = 'move', ballDraggable, selectedId, mini,
-  onMoveToken, onMoveBall, onTapToken, onDraw, onErase, onVia,
+  scene, interactive, tool = 'move', ballDraggable, selectedId, selectedIds = [], mini,
+  onMoveToken, onMoveBall, onTapToken, onDraw, onErase, onVia, onSelect, onMoveMany,
 }: Props) {
   const svg = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [marquee, setMarquee] = useState<Marquee | null>(null);
   const drawing = interactive && (tool === 'run' || tool === 'pass' || tool === 'zone');
-  const moving = interactive && tool === 'move';
+  const selecting = interactive && tool === 'select';
+  const moving = interactive && (tool === 'move' || tool === 'select');
 
   const toPt = (e: React.PointerEvent): Pt => {
     const b = svg.current!.getBoundingClientRect();
@@ -123,23 +131,45 @@ export function Pitch({
   const down = (id: string) => (e: React.PointerEvent) => {
     if (!moving) return;
     e.preventDefault();
+    e.stopPropagation(); // keep the pitch background (marquee) out of it
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
-    setDrag({ id, pt: toPt(e), sx: e.clientX, sy: e.clientY, moved: false });
+    const pt = toPt(e);
+    // With the select tool a selected player drags the whole selection along.
+    const group = selecting && selectedIds.includes(id) ? selectedIds : [id];
+    setDrag({ id, pt, start: pt, sx: e.clientX, sy: e.clientY, moved: false, group });
   };
   const svgDown = (e: React.PointerEvent) => {
     if (!interactive || tool === 'move' || tool === 'erase') return;
     e.preventDefault();
     svg.current!.setPointerCapture(e.pointerId);
     const p = toPt(e);
-    setDraft({ kind: tool, a: p, b: p });
+    if (tool === 'select') setMarquee({ a: p, b: p });
+    else setDraft({ kind: tool, a: p, b: p });
   };
   const move = (e: React.PointerEvent) => {
+    if (marquee) { setMarquee({ ...marquee, b: toPt(e) }); return; }
     if (draft) { setDraft({ ...draft, b: toPt(e) }); return; }
     if (!drag) return;
     const moved = drag.moved || Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6;
     setDrag({ ...drag, pt: toPt(e), moved });
   };
+  /** where each dragged player ends up: everyone shifts by the same amount, kept inside the pitch */
+  const groupMoves = (d: Drag): Record<string, Pt> => {
+    const dx = d.pt.x - d.start.x;
+    const dy = d.pt.y - d.start.y;
+    const out: Record<string, Pt> = {};
+    for (const tk of scene.tokens) if (d.group.includes(tk.id)) out[tk.id] = { x: clamp(tk.x + dx), y: clamp(tk.y + dy) };
+    return out;
+  };
   const up = () => {
+    if (marquee) {
+      const x0 = Math.min(marquee.a.x, marquee.b.x); const x1 = Math.max(marquee.a.x, marquee.b.x);
+      const y0 = Math.min(marquee.a.y, marquee.b.y); const y1 = Math.max(marquee.a.y, marquee.b.y);
+      const tiny = (x1 - x0) * W < 10 && (y1 - y0) * H < 10;
+      onSelect?.(tiny ? [] : scene.tokens.filter(t => t.x >= x0 && t.x <= x1 && t.y >= y0 && t.y <= y1).map(t => t.id));
+      setMarquee(null);
+      return;
+    }
     if (draft) {
       if (Math.hypot((draft.b.x - draft.a.x) * W, (draft.b.y - draft.a.y) * H) > 14) onDraw?.(draft);
       setDraft(null);
@@ -152,13 +182,15 @@ export function Pitch({
       else if (scene.trails.find(t => t.id === id)?.via) onVia?.(id, null);
     } else if (drag.moved) {
       if (drag.id === 'ball') onMoveBall?.(drag.pt);
+      else if (selecting) onMoveMany?.(groupMoves(drag));
       else onMoveToken?.(drag.id, drag.pt);
     } else if (drag.id !== 'ball') {
-      onTapToken?.(drag.id);
+      if (selecting) onSelect?.(selectedIds.includes(drag.id) ? selectedIds.filter(x => x !== drag.id) : [...selectedIds, drag.id]);
+      else onTapToken?.(drag.id);
     }
     setDrag(null);
   };
-  const cancel = () => { setDrag(null); setDraft(null); };
+  const cancel = () => { setDrag(null); setDraft(null); setMarquee(null); };
 
   const key = (tk: SceneToken) => (e: React.KeyboardEvent) => {
     if (!moving) return;
@@ -168,8 +200,8 @@ export function Pitch({
     if (d) { e.preventDefault(); onMoveToken?.(tk.id, { x: clamp(tk.x + d[0]), y: clamp(tk.y + d[1]) }); }
   };
 
-  const place = (tk: SceneToken): SceneToken =>
-    drag && drag.moved && drag.id === tk.id ? { ...tk, x: drag.pt.x, y: drag.pt.y } : tk;
+  const live = drag && drag.moved && !drag.id.startsWith('via:') && drag.id !== 'ball' ? (selecting ? groupMoves(drag) : { [drag.id]: drag.pt }) : null;
+  const place = (tk: SceneToken): SceneToken => (live && live[tk.id] ? { ...tk, ...live[tk.id] } : tk);
   const ball = scene.ball && (drag?.moved && drag.id === 'ball' ? drag.pt : scene.ball);
   const tokens = scene.tokens.map(place).sort((a, b) => a.y - b.y);
   const colors = [...new Set(tokens.filter(t => !t.empty).map(t => t.color))];
@@ -178,7 +210,7 @@ export function Pitch({
   return (
     <svg
       ref={svg}
-      className={`pitch${drawing ? ' drawing' : ''}${mini ? ' mini' : ''}`}
+      className={`pitch${drawing || selecting ? ' drawing' : ''}${mini ? ' mini' : ''}`}
       viewBox={`0 0 ${W} ${H}`}
       role={mini ? 'img' : undefined}
       onPointerDown={svgDown}
@@ -225,6 +257,10 @@ export function Pitch({
         </g>
       ))}
       {draft && <DrawingShape kind={draft.kind} a={draft.a} b={draft.b} alpha={0.9} />}
+      {marquee && (
+        <rect className="marquee" x={Math.min(marquee.a.x, marquee.b.x) * W} y={Math.min(marquee.a.y, marquee.b.y) * H}
+          width={Math.abs(marquee.b.x - marquee.a.x) * W} height={Math.abs(marquee.b.y - marquee.a.y) * H} />
+      )}
       {tokens.map(tk => {
         const selected = selectedId === tk.id;
         const label = `${tk.role} ${tk.name || tk.number || '빈 자리'}`;
@@ -241,6 +277,8 @@ export function Pitch({
           >
             <circle r={R + 12} fill="transparent" />
             {selected && <circle className="sel-ring" r={R + 7} fill="none" stroke="#fde047" strokeWidth={4} />}
+            {selectedIds.includes(tk.id) && <circle className="multi-ring" r={R + 7} fill="rgba(34,211,238,.16)" stroke="#22d3ee" strokeWidth={3.5} />}
+            {tk.holder && <circle className="holder-ring" r={R + 5} fill="none" stroke="#fbbf24" strokeWidth={4} />}
             {tk.empty ? (
               <>
                 <circle r={R} fill="rgba(255,255,255,.14)" stroke="rgba(255,255,255,.85)" strokeWidth={2.5} strokeDasharray="6 5" />

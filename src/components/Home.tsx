@@ -9,6 +9,7 @@ import { toast } from '../lib/toast';
 import type { Player, Tactic } from '../types';
 import { AuthSheet } from './AuthSheet';
 import { IconDownload, IconLogo, IconPlus, IconSettings, IconUser, IconUsers } from './Icons';
+import { MatchesTab } from './MatchesTab';
 import { Menu } from './Menu';
 import { Pitch } from './Pitch';
 import { RosterManager } from './RosterManager';
@@ -68,7 +69,7 @@ export function Home({ onOpen }: { onOpen: (id: string) => void }) {
   const del = useStore(s => s.deleteTactic);
   const importBackup = useStore(s => s.importBackup);
   const { user, isAdmin, signOut } = useAuth();
-  const [tab, setTab] = useState<'mine' | 'team'>('mine');
+  const [tab, setTab] = useState<'mine' | 'matches' | 'team'>('mine');
   const [settings, setSettings] = useState(false);
   const [rosterOpen, setRosterOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
@@ -124,12 +125,13 @@ export function Home({ onOpen }: { onOpen: (id: string) => void }) {
       {cloudEnabled && (
         <div className="segmented" role="tablist">
           <button role="tab" aria-selected={tab === 'mine'} className={tab === 'mine' ? 'on' : ''} onClick={() => setTab('mine')}>내 전술</button>
+          <button role="tab" aria-selected={tab === 'matches'} className={tab === 'matches' ? 'on' : ''} onClick={() => setTab('matches')}>경기</button>
           <button role="tab" aria-selected={tab === 'team'} className={tab === 'team' ? 'on' : ''} onClick={() => setTab('team')}>팀 공개</button>
         </div>
       )}
 
       <section className="list">
-        {tab === 'team' && cloudEnabled ? <PublicList roster={roster} /> : (
+        {tab === 'team' && cloudEnabled ? <PublicList roster={roster} /> : tab === 'matches' && cloudEnabled ? <MatchesTab /> : (
           <>
             {!cloudEnabled && <h2>내 전술 <span className="count">{tactics.length}</span></h2>}
             {tactics.length === 0 && (

@@ -3,8 +3,11 @@ import {
   canShareFile, download, exportFramePng, exportGif, exportLineupPng, exportVideo, share, videoSupported,
   type Output,
 } from '../lib/exporters';
+import { useAuth } from '../lib/auth';
+import { kakaoEnabled, shareImageCard } from '../lib/kakao';
 import { THEMES, themeById } from '../lib/render';
 import { buildPayload, encodePayload, shareUrl } from '../lib/share';
+import { cloudEnabled } from '../lib/supabase';
 import { toast } from '../lib/toast';
 import { IconDownload, IconLink, IconShare } from './Icons';
 import { Sheet } from './Sheet';
@@ -33,6 +36,7 @@ export function ExportSheet({ tactic, roster, frameIndex, speed, onClose }: Prop
     try { localStorage.setItem('chukgubang:theme', id); } catch { /* ignore */ }
   };
   const multi = tactic.frames.length > 1;
+  const user = useAuth(a => a.user);
 
   useEffect(() => () => { if (result) URL.revokeObjectURL(result.url); }, [result]);
 
@@ -59,9 +63,24 @@ export function ExportSheet({ tactic, roster, frameIndex, speed, onClose }: Prop
     try { await share(result.out, tactic.name); } catch { setError('공유하지 못했어요. 저장 후 카카오톡에서 직접 보내 주세요.'); }
   };
 
+  /** Public tactics have a stable page; others fall back to a self-contained link. */
+  const linkFor = async () => (cloudEnabled && user && tactic.isPublic
+    ? `${location.origin}${location.pathname}#/p/${encodeURIComponent(tactic.id)}`
+    : shareUrl(await encodePayload(buildPayload(tactic, roster))));
+
+  const sendKakao = async () => {
+    if (!result) return;
+    try {
+      await shareImageCard({
+        title: tactic.name, image: result.out.blob, url: await linkFor(),
+        description: `${tactic.us.name} ${tactic.us.formation}${tactic.opp ? ` vs ${tactic.opp.name} ${tactic.opp.formation}` : ''}`,
+      });
+    } catch (e) { setError((e as Error).message); }
+  };
+
   const copyLink = async () => {
     try {
-      const url = shareUrl(await encodePayload(buildPayload(tactic, roster)));
+      const url = await linkFor();
       if (navigator.share && !navigator.canShare?.({ files: [new File([], 'a.png', { type: 'image/png' })] })) {
         await navigator.share({ title: tactic.name, url }).catch(e => { if ((e as DOMException).name !== 'AbortError') throw e; });
       } else {
@@ -116,6 +135,7 @@ export function ExportSheet({ tactic, roster, frameIndex, speed, onClose }: Prop
             : <img src={result.url} alt="내보내기 미리보기" />}
           <div className="result-actions">
             <button className="btn" onClick={() => download(result.out)}><IconDownload width={16} height={16} /> 저장</button>
+            {kakaoEnabled && result.out.blob.type === 'image/png' && <button className="btn kakao" onClick={() => void sendKakao()}>카카오톡 카드로 보내기</button>}
             {result.sharable && <button className="btn kakao" onClick={doShare}><IconShare width={16} height={16} /> 공유 · 카카오톡</button>}
           </div>
           <p className="muted small">

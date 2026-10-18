@@ -162,6 +162,10 @@ function drawToken(ctx: CanvasRenderingContext2D, tk: SceneToken, r: Rect) {
     ctx.lineWidth = rad * 0.14; ctx.strokeStyle = '#fff'; ctx.stroke();
   }
   ctx.restore();
+  if (tk.holder) {
+    ctx.beginPath(); ctx.arc(c.x, c.y, rad * 1.2, 0, Math.PI * 2);
+    ctx.lineWidth = rad * 0.16; ctx.strokeStyle = '#fbbf24'; ctx.stroke();
+  }
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   if (tk.empty) {
     ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = `700 ${rad * 0.62}px ${FONT}`;

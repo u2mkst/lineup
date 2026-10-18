@@ -1,6 +1,7 @@
 import { GIFEncoder, applyPalette, quantize } from 'gifenc';
 import { sampleAt, totalDuration } from './anim';
 import { drawFrameCard, frameCardSize, renderLineupCard, type Theme } from './render';
+import { assignAt } from './assign';
 import { buildScene } from './scene';
 import type { Player, Tactic } from '../types';
 
@@ -30,7 +31,7 @@ function frameCanvas(width: number) {
 
 function drawAt(ctx: CanvasRenderingContext2D, tactic: Tactic, roster: Player[], ms: number, width: number, theme: Theme) {
   const s = sampleAt(tactic.frames, ms);
-  const scene = buildScene(tactic, roster, s.positions, s.ball, { drawings: s.drawings });
+  const scene = buildScene(tactic, roster, s.positions, s.ball, { drawings: s.drawings, assign: assignAt(tactic, s.frameIndex), holder: s.holder });
   drawFrameCard(ctx, tactic, scene, {
     width,
     theme,
@@ -43,7 +44,7 @@ export async function exportFramePng(tactic: Tactic, roster: Player[], index: nu
   const f = tactic.frames[index];
   const { canvas, ctx } = frameCanvas(1080);
   const prev = tactic.frames[index - 1] ?? null;
-  drawFrameCard(ctx, tactic, buildScene(tactic, roster, f.positions, f.ball, { prev, drawings: f.drawings.map(d => ({ ...d, alpha: 1 })) }, f), {
+  drawFrameCard(ctx, tactic, buildScene(tactic, roster, f.positions, f.ball, { prev, assign: assignAt(tactic, index), drawings: f.drawings.map(d => ({ ...d, alpha: 1 })) }, f), {
     width: 1080,
     theme,
     label: `장면 ${index + 1} / ${tactic.frames.length}`,

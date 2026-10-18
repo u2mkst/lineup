@@ -20,7 +20,14 @@ function pt(v: unknown, fallback: Pt): Pt {
 export function normalizePlayer(raw: unknown): Player | null {
   if (!isObj(raw)) return null;
   const pos = POS.includes(raw.pos as Pos) ? (raw.pos as Pos) : 'MF';
-  return { id: str(raw.id, '', 60) || uid(), number: str(raw.number, '', 3), name: str(raw.name, '', 8), pos };
+  const altRaw = raw.altPos ?? raw.alt_pos;
+  const altPos = Array.isArray(altRaw) ? [...new Set(altRaw.filter((p): p is Pos => POS.includes(p as Pos) && p !== pos))] : [];
+  const out = (raw.out ?? raw.injured) === true;
+  const note = str(raw.note ?? raw.injury_note, '', 20);
+  return {
+    id: str(raw.id, '', 60) || uid(), number: str(raw.number, '', 3), name: str(raw.name, '', 8), pos,
+    ...(altPos.length ? { altPos } : {}), ...(out ? { out: true } : {}), ...(note ? { note } : {}),
+  };
 }
 
 function normalizeFrame(raw: unknown, base: Record<string, Pt>): Frame {
@@ -37,7 +44,20 @@ function normalizeFrame(raw: unknown, base: Record<string, Pt>): Frame {
   const rv = isObj(r.via) ? r.via : {};
   const via: Record<string, Pt> = {};
   for (const id of [...Object.keys(base), 'ball']) if (isObj(rv[id])) via[id] = pt(rv[id], { x: 0.5, y: 0.5 });
-  return { id: str(r.id, '', 60) || uid(), note: str(r.note, '', 60), drawings, via, positions, ball: pt(r.ball, { x: 0.5, y: 0.5 }) };
+  const rs = isObj(r.subs) ? r.subs : {};
+  const subs: Record<string, string | null> = {};
+  for (const id of Object.keys(base).filter(k => k.startsWith('u'))) if (id in rs) subs[id] = typeof rs[id] === 'string' ? (rs[id] as string) : null;
+  const rt = isObj(r.timing) ? r.timing : {};
+  const timing: Record<string, [number, number]> = {};
+  for (const id of [...Object.keys(base), 'ball']) {
+    const v = rt[id];
+    if (!Array.isArray(v) || v.length !== 2) continue;
+    const a = clamp01(num(v[0], 0));
+    const b = clamp01(num(v[1], 1));
+    if (b - a >= 0.1 && (a > 0 || b < 1)) timing[id] = [a, b];
+  }
+  const holder = typeof r.holder === 'string' && r.holder in base ? r.holder : null;
+  return { id: str(r.id, '', 60) || uid(), note: str(r.note, '', 60), drawings, via, subs, timing, holder, positions, ball: pt(r.ball, { x: 0.5, y: 0.5 }) };
 }
 
 /** Rebuilds a tactic from untrusted data (share links, backups, old storage). */
@@ -70,6 +90,7 @@ export function normalizeTactic(raw: unknown): Tactic | null {
     name: str(raw.name, '전술', 24),
     updatedAt: num(raw.updatedAt, Date.now()),
     ...(raw.isPublic === true ? { isPublic: true } : {}),
+    ...(typeof raw.matchId === 'string' ? { matchId: raw.matchId.slice(0, 60) } : {}),
     us: { name: str(us.name, '우리팀', 12), color: color(us.color, '#2563eb'), formation: usF, assign },
     opp,
     frames: raw.frames.slice(0, 30).map(f => normalizeFrame(f, base)),

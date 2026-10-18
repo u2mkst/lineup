@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
-import { DEFAULT_FORMATION, roleGroup } from '../data/formations';
+import { DEFAULT_FORMATION } from '../data/formations';
 import { defaultRoster } from '../data/defaultRoster';
 import type { Drawing, Frame, OppTeam, Player, Pt, Tactic } from '../types';
+import { mirror, type TemplateFrame } from '../data/setpieces';
 import { uid } from './id';
+import { autoAssign } from './autofill';
+import { ballAt } from './holder';
 import { layoutFormation, rolesFor, tokenIds } from './layout';
 import { toast } from './toast';
 import { normalizePlayer, normalizeTactic } from './validate';
@@ -14,7 +17,7 @@ const HISTORY_LIMIT = 60;
 const STORAGE_KEY = 'chukgubang:v1';
 
 function makeFrame(positions: Record<string, Pt>, ball: Pt = BALL_START, note = ''): Frame {
-  return { id: uid(), note, drawings: [], via: {}, positions, ball };
+  return { id: uid(), note, drawings: [], via: {}, subs: {}, timing: {}, holder: null, positions, ball };
 }
 
 function layoutPositions(formation: string, side: 'us' | 'opp', hasOpp: boolean): Record<string, Pt> {
@@ -78,7 +81,17 @@ interface State {
   clearAssign: (id: string) => void;
 
   moveToken: (id: string, frame: number, token: string, pt: Pt) => void;
-  moveBall: (id: string, frame: number, pt: Pt) => void;
+  /** move several players at once (group drag); the ball follows its holder */
+  moveTokens: (id: string, frame: number, moves: Record<string, Pt>) => void;
+  /** drop the ball somewhere, optionally sticking to a player */
+  moveBall: (id: string, frame: number, pt: Pt, holder?: string | null) => void;
+  /** substitute `playerId` into slot `token` from this frame on (null = leave the slot empty) */
+  setSub: (id: string, frame: number, token: string, playerId: string | null) => void;
+  clearSub: (id: string, frame: number, token: string) => void;
+  /** when a player (or the ball) starts and stops moving within the transition into `frame` */
+  setTiming: (id: string, frame: number, token: string, range: [number, number] | null) => void;
+  /** replace the frames with a set-piece template */
+  applyTemplate: (id: string, frames: TemplateFrame[]) => void;
   addFrame: (id: string, after: number) => number;
   deleteFrame: (id: string, index: number) => void;
   moveFrame: (id: string, from: number, to: number) => void;
@@ -161,6 +174,9 @@ export const useStore = create<State>()(
         if (t.opp) Object.assign(first.positions, layoutPositions(t.opp.formation, 'opp', true));
         first.drawings = [];
         first.via = {};
+        first.subs = {};
+        first.timing = {};
+        first.holder = null;
         t.frames = [first];
       };
 
@@ -241,23 +257,8 @@ export const useStore = create<State>()(
           }),
         autoFill: id =>
           edit(id, t => {
-            const used = new Set<string>();
-            const roles = rolesFor(t.us.formation);
-            const { roster } = get();
-            const tokens = tokenIds('us');
-            const pick = (pred: (p: Player) => boolean) => roster.find(p => !used.has(p.id) && pred(p));
-            // Two passes so exact-position matches win over fallbacks.
-            const out: Record<string, string | null> = Object.fromEntries(tokens.map(k => [k, null]));
-            tokens.forEach((k, i) => {
-              const p = pick(pl => pl.pos === roleGroup(roles[i]));
-              if (p) { out[k] = p.id; used.add(p.id); }
-            });
-            tokens.forEach((k, i) => {
-              if (out[k]) return;
-              const p = pick(pl => (roles[i] === 'GK' ? pl.pos === 'GK' : pl.pos !== 'GK'));
-              if (p) { out[k] = p.id; used.add(p.id); }
-            });
-            t.us.assign = out;
+            const picks = autoAssign(get().roster, rolesFor(t.us.formation));
+            tokenIds('us').forEach((k, i) => (t.us.assign[k] = picks[i]));
           }),
         clearAssign: id =>
           edit(id, t => {
@@ -266,17 +267,64 @@ export const useStore = create<State>()(
 
         moveToken: (id, frame, token, pt) =>
           edit(id, t => {
-            if (t.frames[frame]) t.frames[frame].positions[token] = pt;
+            const f = t.frames[frame];
+            if (!f) return;
+            f.positions[token] = pt;
+            if (f.holder === token) f.ball = ballAt(pt);
           }),
-        moveBall: (id, frame, pt) =>
+        moveTokens: (id, frame, moves) =>
           edit(id, t => {
-            if (t.frames[frame]) t.frames[frame].ball = pt;
+            const f = t.frames[frame];
+            if (!f) return;
+            Object.assign(f.positions, moves);
+            if (f.holder && moves[f.holder]) f.ball = ballAt(moves[f.holder]);
+          }),
+        moveBall: (id, frame, pt, holder = null) =>
+          edit(id, t => {
+            const f = t.frames[frame];
+            if (!f) return;
+            f.holder = holder;
+            f.ball = holder ? ballAt(f.positions[holder] ?? pt) : pt;
+          }),
+        setSub: (id, frame, token, playerId) =>
+          edit(id, t => {
+            const f = t.frames[frame];
+            if (!f || frame === 0) return;
+            f.subs[token] = playerId;
+          }),
+        clearSub: (id, frame, token) =>
+          edit(id, t => {
+            delete t.frames[frame]?.subs[token];
+          }),
+        setTiming: (id, frame, token, range) =>
+          edit(id, t => {
+            const f = t.frames[frame];
+            if (!f || frame === 0) return;
+            if (range && (range[0] > 0 || range[1] < 1)) f.timing[token] = range;
+            else delete f.timing[token];
+          }),
+        applyTemplate: (id, frames) =>
+          edit(id, t => {
+            const next: Frame[] = frames.map(tf => {
+              const positions: Record<string, Pt> = {};
+              tokenIds('us').forEach((k, i) => (positions[k] = tf.us[i]));
+              if (t.opp) tokenIds('opp').forEach((k, i) => (positions[k] = (tf.opp ?? tf.us.map(mirror))[i]));
+              const holder = tf.holder && (tf.holder.startsWith('u') || t.opp) ? tf.holder : null;
+              const keep = (rec?: Record<string, Pt>) => Object.fromEntries(Object.entries(rec ?? {}).filter(([k]) => k === 'ball' || k in positions));
+              return {
+                id: uid(), note: tf.note, positions, ball: holder ? ballAt(positions[holder]) : tf.ball,
+                holder, via: keep(tf.via), subs: {}, timing: {},
+                drawings: (tf.drawings ?? []).map(d => ({ ...d, id: uid() })),
+              };
+            });
+            t.frames = next.length ? next : t.frames;
           }),
         addFrame: (id, after) => {
           let index = after + 1;
           edit(id, t => {
             const src = t.frames[after] ?? t.frames[t.frames.length - 1];
             const copy = makeFrame(structuredClone(src.positions), { ...src.ball });
+            copy.holder = src.holder;
             index = Math.min(after + 1, t.frames.length);
             t.frames.splice(index, 0, copy);
           });
@@ -285,17 +333,22 @@ export const useStore = create<State>()(
         deleteFrame: (id, index) =>
           edit(id, t => {
             if (t.frames.length <= 1) return;
-            t.frames.splice(index, 1);
-            // The frame that followed now arrives from a different place.
-            if (t.frames[index]) t.frames[index].via = {};
+            const [gone] = t.frames.splice(index, 1);
+            const next = t.frames[index];
+            if (next) {
+              // The frame that followed now arrives from a different place; substitutions made here must not vanish.
+              next.via = {};
+              next.timing = {};
+              next.subs = { ...gone.subs, ...next.subs };
+            }
           }),
         moveFrame: (id, from, to) =>
           edit(id, t => {
             if (to < 0 || to >= t.frames.length || from === to) return;
             const [f] = t.frames.splice(from, 1);
             t.frames.splice(to, 0, f);
-            // Curves describe the way in from the previous frame, which just changed.
-            t.frames.forEach(fr => (fr.via = {}));
+            // Curves and timing describe the way in from the previous frame, which just changed.
+            t.frames.forEach(fr => { fr.via = {}; fr.timing = {}; });
           }),
         setVia: (id, frame, token, pt) =>
           edit(id, t => {

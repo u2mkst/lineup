@@ -19,7 +19,10 @@ export function RosterView({ onClose }: { onClose: () => void }) {
           <div key={pos} className="formation-group">
             <h4>{label} · {list.length}</h4>
             <div className="bench">
-              {list.map(p => <span key={p.id} className="bench-chip"><b>{p.number}</b>{p.name}</span>)}
+              {list.map(p => (
+                <span key={p.id} className={`bench-chip${p.out ? ' out' : ''}`}><b>{p.number}</b>{p.name}
+                  {p.altPos?.length ? <small>+{p.altPos.join('/')}</small> : null}{p.out ? <em className="flag danger">부상</em> : null}</span>
+              ))}
             </div>
           </div>
         );

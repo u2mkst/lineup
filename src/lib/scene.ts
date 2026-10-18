@@ -7,6 +7,9 @@ export interface SceneOpts {
   /** `via` overrides, e.g. while a curve handle is being dragged */
   via?: Record<string, Pt>;
   drawings?: SceneDrawing[];
+  /** who plays each of our slots (defaults to the line-up; pass `assignAt` for later frames) */
+  assign?: Record<string, string | null>;
+  holder?: string | null;
 }
 
 export function buildScene(
@@ -18,17 +21,19 @@ export function buildScene(
   frame?: Frame,
 ): Scene {
   const { prev = null, drawings = [] } = opts;
+  const assign = opts.assign ?? tactic.us.assign;
+  const holder = opts.holder !== undefined ? opts.holder : frame?.holder ?? null;
   const via = { ...(frame?.via ?? {}), ...(opts.via ?? {}) };
   const tokens: SceneToken[] = [];
   const usRoles = rolesFor(tactic.us.formation);
   tokenIds('us').forEach((id, i) => {
-    const pl = roster.find(p => p.id === tactic.us.assign[id]);
+    const pl = roster.find(p => p.id === assign[id]);
     const pos = positions[id];
     if (!pos) return;
     tokens.push({
       id, side: 'us', x: pos.x, y: pos.y,
       number: pl?.number ?? '', name: pl?.name ?? '', color: tactic.us.color,
-      role: usRoles[i], empty: !pl,
+      role: usRoles[i], empty: !pl, holder: holder === id,
     });
   });
   if (tactic.opp) {
@@ -41,7 +46,7 @@ export function buildScene(
       tokens.push({
         id, side: 'opp', x: pos.x, y: pos.y,
         number: lb?.number ?? '', name: lb?.name ?? '', color: opp.color,
-        role: oRoles[i], empty: false,
+        role: oRoles[i], empty: false, holder: holder === id,
       });
     });
   }

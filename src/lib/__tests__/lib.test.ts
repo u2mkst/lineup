@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { formationRoles } from '../../data/formations';
 import { HOLD, MOVE, sampleAt, totalDuration } from '../anim';
 import { along, controlPoint } from '../curve';
+import { BALL_OFFSET, nearestHolder } from '../holder';
 import { layoutFormation, rolesFor } from '../layout';
 import { buildPayload, decodePayload, encodePayload } from '../share';
 import { useStore } from '../store';
-import { normalizeTactic } from '../validate';
+import { normalizePlayer, normalizeTactic } from '../validate';
 
 const fresh = () => {
   useStore.setState({ tactics: [], history: {} });
@@ -35,7 +36,7 @@ describe('layout', () => {
 });
 
 describe('anim', () => {
-  const mk = (x: number, n: string) => ({ id: n, note: n, via: {}, drawings: [{ id: `d${n}`, kind: 'run' as const, a: { x: 0, y: 0 }, b: { x: 1, y: 1 } }], positions: { u0: { x, y: 0.5 } }, ball: { x, y: 0.5 } });
+  const mk = (x: number, n: string) => ({ id: n, note: n, via: {}, subs: {}, timing: {}, holder: null, drawings: [{ id: `d${n}`, kind: 'run' as const, a: { x: 0, y: 0 }, b: { x: 1, y: 1 } }], positions: { u0: { x, y: 0.5 } }, ball: { x, y: 0.5 } });
   const frames = [mk(0, 'a'), mk(1, 'b')];
   it('holds, travels, then lands on the last frame', () => {
     expect(totalDuration(2)).toBe(HOLD + MOVE + HOLD);
@@ -153,7 +154,7 @@ describe('curves', () => {
     expect(controlPoint(a, b, { x: 0.5, y: 1 })).toEqual({ x: 0.5, y: 1 });
   });
   it('animates along the bend and straight when there is none', () => {
-    const f = (x: number, via = {}) => ({ id: String(x), note: '', via, drawings: [], positions: { u0: { x, y: 1 } }, ball: { x, y: 1 } });
+    const f = (x: number, via = {}) => ({ id: String(x), note: '', via, subs: {}, timing: {}, holder: null, drawings: [], positions: { u0: { x, y: 1 } }, ball: { x, y: 1 } });
     const bent = [f(0), f(1, { u0: { x: 0.5, y: 0.2 } })];
     const t = HOLD + MOVE / 2;
     expect(sampleAt(bent, t).positions.u0.y).toBeCloseTo(0.2, 6);
@@ -231,5 +232,146 @@ describe('cloud errors and roster order', () => {
     const { sortRoster } = await import('../roster');
     const p = (number: string, pos: 'GK' | 'DF' | 'MF' | 'FW') => ({ id: number, number, name: number, pos });
     expect(sortRoster([p('9', 'FW'), p('10', 'MF'), p('2', 'DF'), p('1', 'GK'), p('3', 'DF')]).map(x => x.number)).toEqual(['1', '2', '3', '10', '9']);
+  });
+});
+
+describe('substitutions', () => {
+  it('applies subs from their frame onward and carries them when a frame is deleted', async () => {
+    const { assignAt, benchAt } = await import('../assign');
+    const id = fresh();
+    const s = useStore.getState();
+    s.assignPlayer(id, 'u5', 'p6');
+    s.addFrame(id, 0); s.addFrame(id, 1); s.addFrame(id, 2);
+    s.setSub(id, 1, 'u5', 'p8');                // frame 1: p8 replaces p6
+    s.setSub(id, 0, 'u5', 'p99');               // frame 0 is the line-up itself: refused
+    expect(get(id).frames[0].subs).toEqual({});
+    expect(assignAt(get(id), 0).u5).toBe('p6');
+    expect(assignAt(get(id), 1).u5).toBe('p8');
+    expect(assignAt(get(id), 3).u5).toBe('p8');
+    s.setSub(id, 2, 'u5', 'p10');
+    expect(assignAt(get(id), 2).u5).toBe('p10');
+    expect(benchAt(get(id), useStore.getState().roster, 2).some(p => p.id === 'p8')).toBe(true);
+    s.deleteFrame(id, 1);                        // p8's entry must survive on the next frame...
+    expect(get(id).frames[1].subs.u5).toBe('p10'); // ...unless that frame overrides it
+    s.clearSub(id, 1, 'u5');
+    s.deleteFrame(id, 1);
+    expect(assignAt(get(id), 1).u5).toBe('p6');
+  });
+});
+
+describe('timing and ball holder', () => {
+  const frame = (x: number, extra = {}) => ({ id: String(x), note: '', via: {}, subs: {}, timing: {}, holder: null, drawings: [], positions: { u0: { x, y: 0.5 }, u1: { x, y: 0.2 } }, ball: { x, y: 0.5 }, ...extra });
+  it('lets a player start late or arrive early', () => {
+    const frames = [frame(0), frame(1, { timing: { u1: [0.5, 1] } })];
+    const quarter = sampleAt(frames, HOLD + MOVE * 0.25);
+    expect(quarter.positions.u0.x).toBeGreaterThan(0.05);   // moving
+    expect(quarter.positions.u1.x).toBe(0);                  // still waiting
+    expect(sampleAt(frames, HOLD + MOVE * 0.99).positions.u1.x).toBeGreaterThan(0.9);
+    const early = [frame(0), frame(1, { timing: { u0: [0, 0.5] } })];
+    expect(sampleAt(early, HOLD + MOVE * 0.5).positions.u0.x).toBeCloseTo(1, 5);
+  });
+  it('validates timing ranges', () => {
+    const t = normalizeTactic({ us: {}, frames: [{}, { timing: { u1: [0.2, 0.9], u2: [0.5, 0.52], u3: 'x', ball: [0, 1] } }] })!;
+    expect(t.frames[1].timing).toEqual({ u1: [0.2, 0.9] });
+  });
+  it('keeps the ball glued to its holder', () => {
+    const id = fresh();
+    const s = useStore.getState();
+    const p = get(id).frames[0].positions.u9;
+    s.moveBall(id, 0, p, 'u9');
+    expect(get(id).frames[0].holder).toBe('u9');
+    s.moveToken(id, 0, 'u9', { x: 0.3, y: 0.3 });
+    expect(get(id).frames[0].ball.x).toBeCloseTo(0.3 + BALL_OFFSET.x, 5);
+    s.moveTokens(id, 0, { u9: { x: 0.6, y: 0.4 }, u8: { x: 0.2, y: 0.2 } });
+    expect(get(id).frames[0].ball.x).toBeCloseTo(0.6 + BALL_OFFSET.x, 5);
+    expect(get(id).frames[0].positions.u8).toEqual({ x: 0.2, y: 0.2 });
+    s.moveBall(id, 0, { x: 0.5, y: 0.5 }, null);
+    expect(get(id).frames[0].holder).toBeNull();
+    expect(get(id).frames[0].ball).toEqual({ x: 0.5, y: 0.5 });
+  });
+  it('snaps a dropped ball to the nearest player only when close', () => {
+    const tokens = [{ id: 'u1', x: 0.5, y: 0.5 }, { id: 'u2', x: 0.9, y: 0.9 }];
+    expect(nearestHolder(tokens, { x: 0.52, y: 0.51 })).toBe('u1');
+    expect(nearestHolder(tokens, { x: 0.7, y: 0.7 })).toBeNull();
+  });
+});
+
+describe('auto fill and set pieces', () => {
+  const pl = (id: string, pos: 'GK' | 'DF' | 'MF' | 'FW', extra = {}) => ({ id, number: id, name: id, pos, ...extra });
+  it('skips injured players and uses alternative positions', async () => {
+    const { autoAssign } = await import('../autofill');
+    const roster = [pl('gk', 'GK'), pl('d1', 'DF', { out: true }), pl('d2', 'DF'), pl('m1', 'MF', { altPos: ['DF'] }), pl('f1', 'FW')];
+    // m1 is a natural MF, so with a CM slot he plays there and the injured d1 is only the last resort for LCB
+    expect(autoAssign(roster, ['GK', 'LB', 'LCB', 'CM', 'ST'])).toEqual(['gk', 'd2', 'd1', 'm1', 'f1']);
+    // without a midfield slot, m1 covers defence before the injured defender is used
+    expect(autoAssign(roster, ['GK', 'LB', 'LCB', 'ST'])).toEqual(['gk', 'd2', 'm1', 'f1']);
+  });
+  it('still fills the pitch when everyone is out', async () => {
+    const { autoAssign } = await import('../autofill');
+    const r = autoAssign([pl('gk', 'GK', { out: true }), pl('d1', 'DF', { out: true })], ['GK', 'LB']);
+    expect(r).toEqual(['gk', 'd1']);
+  });
+  it('every template has 11 in-bounds positions per frame and valid tokens', async () => {
+    const { SET_PIECES } = await import('../../data/setpieces');
+    expect(SET_PIECES.length).toBeGreaterThanOrEqual(6);
+    for (const sp of SET_PIECES) {
+      expect(sp.frames.length).toBeGreaterThanOrEqual(2);
+      for (const f of sp.frames) {
+        for (const list of [f.us, f.opp ?? f.us]) {
+          expect(list).toHaveLength(11);
+          list.forEach(p => { expect(p.x).toBeGreaterThan(0.02); expect(p.x).toBeLessThan(0.98); expect(p.y).toBeGreaterThan(0.02); expect(p.y).toBeLessThan(0.98); });
+        }
+        if (f.holder) expect(/^[uo]([0-9]|10)$/.test(f.holder)).toBe(true);
+      }
+    }
+  });
+  it('applies a template to our team, and to the opponent only when it is on', async () => {
+    const { SET_PIECES } = await import('../../data/setpieces');
+    const corner = SET_PIECES.find(s => s.id === 'corner-attack')!;
+    const id = fresh();
+    useStore.getState().applyTemplate(id, corner.frames);
+    let t = get(id);
+    expect(t.frames).toHaveLength(2);
+    expect(Object.keys(t.frames[0].positions)).toHaveLength(11);
+    expect(t.frames[1].holder).toBe('u1');
+    expect(t.frames[1].via.u1).toBeDefined();
+    useStore.getState().setOpponent(id, true);
+    useStore.getState().applyTemplate(id, corner.frames);
+    t = get(id);
+    expect(Object.keys(t.frames[0].positions)).toHaveLength(22);
+    const cd = SET_PIECES.find(s => s.id === 'corner-defend')!;
+    useStore.getState().applyTemplate(id, cd.frames);
+    expect(get(id).frames[0].holder).toBe('o10');
+    useStore.getState().setOpponent(id, false);
+    useStore.getState().applyTemplate(id, cd.frames);
+    expect(get(id).frames[0].holder).toBeNull();   // no opponent -> nobody to hold the ball
+  });
+});
+
+describe('matches and kakao', () => {
+  it('keeps the match link on a tactic but only as a short string', () => {
+    expect(normalizeTactic({ us: {}, frames: [{}], matchId: 'abc' })!.matchId).toBe('abc');
+    expect(normalizeTactic({ us: {}, frames: [{}], matchId: 5 })!.matchId).toBeUndefined();
+  });
+  it('knows when a match can still be voted on (until a day after kick-off)', async () => {
+    const { isOpen } = await import('../matches');
+    const h = 3600 * 1000;
+    expect(isOpen(new Date(Date.now() + 5 * h).toISOString())).toBe(true);
+    expect(isOpen(new Date(Date.now() - 20 * h).toISOString())).toBe(true);
+    expect(isOpen(new Date(Date.now() - 30 * h).toISOString())).toBe(false);
+  });
+  it('builds Kakao card payloads with the link on both the card and the button', async () => {
+    const { textCard, feedCard } = await import('../kakao');
+    const t = textCard('⚽ 10월 정기전', 'https://x.test/#/m/1', '참석 투표하기') as { link: { webUrl: string }; buttons: { title: string; link: { mobileWebUrl: string } }[] };
+    expect(t.link.webUrl).toBe('https://x.test/#/m/1');
+    expect(t.buttons[0]).toMatchObject({ title: '참석 투표하기', link: { mobileWebUrl: 'https://x.test/#/m/1' } });
+    const f = feedCard({ title: 'T'.repeat(300), description: 'd', imageUrl: 'https://img/1.png', width: 1080, height: 1888 }, 'https://x.test/#/p/1') as { content: { title: string; imageUrl: string } };
+    expect(f.content.title).toHaveLength(200);
+    expect(f.content.imageUrl).toBe('https://img/1.png');
+  });
+  it('maps player columns both ways', async () => {
+    const p = normalizePlayer({ id: 'x', number: '9', name: '공격수', pos: 'FW', alt_pos: ['MF', 'FW', 'ZZ'], injured: true, injury_note: '햄스트링' })!;
+    expect(p).toMatchObject({ altPos: ['MF'], out: true, note: '햄스트링' });   // own position and junk are dropped
+    expect(normalizePlayer({ id: 'y', number: '1', name: 'a', pos: 'GK' })).not.toHaveProperty('out');
   });
 });

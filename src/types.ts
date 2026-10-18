@@ -6,6 +6,12 @@ export interface Player {
   number: string;
   name: string;
   pos: Pos;
+  /** other positions this player can cover */
+  altPos?: Pos[];
+  /** injured / unavailable: skipped by auto-fill and flagged in pickers */
+  out?: boolean;
+  /** short reason shown next to the flag, e.g. "햄스트링" */
+  note?: string;
 }
 
 export type DrawKind = 'run' | 'pass' | 'zone';
@@ -27,6 +33,12 @@ export interface Frame {
    * frame passes through halfway. Missing = straight line.
    */
   via: Record<string, Pt>;
+  /** token id -> player id: substitutions made at this frame, kept until changed again */
+  subs: Record<string, string | null>;
+  /** token id (or `ball`) -> [start, end] of the move into this frame, as fractions 0..1 */
+  timing: Record<string, [number, number]>;
+  /** token id of the player holding the ball in this frame */
+  holder: string | null;
   /** token id -> normalized (0..1) pitch position */
   positions: Record<string, Pt>;
   ball: Pt;
@@ -54,6 +66,8 @@ export interface Tactic {
   updatedAt: number;
   /** visible to everyone (no login needed) once synced to the server */
   isPublic?: boolean;
+  /** the match this line-up is for */
+  matchId?: string;
   us: UsTeam;
   opp: OppTeam | null;
   frames: Frame[];
@@ -72,6 +86,8 @@ export interface SceneToken {
   color: string;
   role: string;
   empty: boolean;
+  /** has the ball (ring is drawn around the marker) */
+  holder: boolean;
 }
 
 export interface SceneDrawing extends Drawing {
@@ -93,4 +109,28 @@ export interface Scene {
   ball: Pt | null;
   trails: SceneTrail[];
   drawings: SceneDrawing[];
+}
+
+export type Attend = 'yes' | 'no' | 'maybe';
+
+export interface Match {
+  id: string;
+  title: string;
+  opponent: string;
+  /** ISO timestamp */
+  kickoff: string;
+  venue: string;
+  notes: string;
+  /** public tactic holding the line-up for this match */
+  tacticId: string | null;
+}
+
+export interface TacticComment {
+  id: string;
+  tacticId: string;
+  playerId: string | null;
+  author: string;
+  kind: 'comment' | 'ack';
+  body: string;
+  createdAt: string;
 }

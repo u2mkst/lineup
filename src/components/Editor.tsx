@@ -1,7 +1,11 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { sampleAt } from '../lib/anim';
+import { assignAt, benchAt } from '../lib/assign';
 import { useAuth } from '../lib/auth';
+import { fetchMatch } from '../lib/cloud';
+import { nearestHolder } from '../lib/holder';
 import { rolesFor } from '../lib/layout';
+import { useAttendance } from '../lib/matches';
 import { buildScene } from '../lib/scene';
 import { useStore } from '../lib/store';
 import { cloudEnabled } from '../lib/supabase';
@@ -9,12 +13,13 @@ import { useSync } from '../lib/sync';
 import { usePlayback } from '../lib/usePlayback';
 import { IconBack, IconRedo, IconUndo } from './Icons';
 import { LineupPanel } from './LineupPanel';
+import { MatchLinkSheet } from './MatchLinkSheet';
 import { OppEditor } from './OppEditor';
 import { Pitch, type Tool } from './Pitch';
 import { PlayerBar } from './PlayerBar';
 import { PlayerPicker } from './PlayerPicker';
 import { RosterManager } from './RosterManager';
-import { TacticPanel } from './TacticPanel';
+import { TacticPanel, type MovedItem, type SubItem } from './TacticPanel';
 
 const ExportSheet = lazy(() => import('./ExportSheet').then(m => ({ default: m.ExportSheet })));
 
@@ -29,29 +34,47 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
   const canRedo = useStore(s => (s.history[id]?.future.length ?? 0) > 0);
   const store = useStore();
   const user = useAuth(s => s.user);
+  const isAdmin = useAuth(s => s.isAdmin);
   const syncStatus = useSync(s => s.status);
 
   const [mode, setMode] = useState<Mode>('lineup');
   const [showTrails, setShowTrails] = useState(true);
-  const [tool, setTool] = useState<Tool>('move');
+  const [tool, setToolState] = useState<Tool>('move');
+  const [selected, setSelected] = useState<string[]>([]);
   const [pick, setPick] = useState<string | null>(null);
+  const [subToken, setSubToken] = useState<string | null>(null);
   const [oppEdit, setOppEdit] = useState<string | null>(null);
   const [rosterOpen, setRosterOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [matchOpen, setMatchOpen] = useState(false);
+  const [matchTitle, setMatchTitle] = useState('');
   const pb = usePlayback(tactic?.frames);
-  const modalOpen = !!pick || !!oppEdit || rosterOpen || exportOpen;
+  const att = useAttendance(cloudEnabled ? tactic?.matchId : undefined);
+  const modalOpen = !!pick || !!subToken || !!oppEdit || rosterOpen || exportOpen || matchOpen;
+
+  const setTool = (t: Tool) => { setToolState(t); if (t !== 'select') setSelected([]); };
+
+  useEffect(() => {
+    const mid = tactic?.matchId;
+    if (!mid || !cloudEnabled) { setMatchTitle(''); return; }
+    let live = true;
+    fetchMatch(mid).then(m => live && setMatchTitle(m?.title ?? '')).catch(() => undefined);
+    return () => { live = false; };
+  }, [tactic?.matchId]);
+
+  const sample = tactic && pb.time != null ? sampleAt(tactic.frames, pb.time) : null;
+  /** frame whose line-up (substitutions included) is on the pitch right now */
+  const lineupFrame = mode === 'lineup' ? 0 : sample ? sample.frameIndex : pb.frameIndex;
 
   const scene = useMemo(() => {
     if (!tactic) return null;
-    if (mode === 'lineup') return buildScene(tactic, roster, tactic.frames[0].positions, null);
-    if (pb.time != null) {
-      const s = sampleAt(tactic.frames, pb.time);
-      return buildScene(tactic, roster, s.positions, s.ball, { drawings: s.drawings });
-    }
+    const assign = assignAt(tactic, lineupFrame);
+    if (mode === 'lineup') return buildScene(tactic, roster, tactic.frames[0].positions, null, { assign });
+    if (sample) return buildScene(tactic, roster, sample.positions, sample.ball, { drawings: sample.drawings, assign, holder: sample.holder });
     const f = tactic.frames[pb.frameIndex];
     const prev = showTrails && pb.frameIndex > 0 ? tactic.frames[pb.frameIndex - 1] : null;
-    return buildScene(tactic, roster, f.positions, f.ball, { prev, drawings: f.drawings.map(d => ({ ...d, alpha: 1 })) }, f);
-  }, [tactic, roster, mode, pb.time, pb.frameIndex, showTrails]);
+    return buildScene(tactic, roster, f.positions, f.ball, { prev, assign, drawings: f.drawings.map(d => ({ ...d, alpha: 1 })) }, f);
+  }, [tactic, roster, mode, sample, lineupFrame, pb.frameIndex, showTrails]);
 
   const togglePlay = () => { setTool('move'); pb.toggle(); };
 
@@ -77,10 +100,10 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
 
   if (!tactic || !scene) return <div className="empty"><p>전술을 찾을 수 없어요.</p><button className="btn" onClick={onBack}>목록으로</button></div>;
 
-  const sample = pb.time != null ? sampleAt(tactic.frames, pb.time) : null;
   const liveNote = sample ? tactic.frames[sample.noteIndex].note : mode === 'tactic' ? tactic.frames[pb.frameIndex].note : '';
   const editable = mode === 'lineup' || (pb.time == null && !pb.playing);
   const exportFrame = sample ? sample.frameIndex : pb.frameIndex;
+  const frame = tactic.frames[pb.frameIndex];
 
   const switchMode = (m: Mode) => {
     setMode(m); pb.stop(); setTool('move');
@@ -88,9 +111,12 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
   };
 
   const onTapToken = (tokenId: string) => {
-    if (mode !== 'lineup') return;
-    if (tokenId.startsWith('u')) setPick(tokenId);
-    else setOppEdit(tokenId);
+    if (mode === 'lineup') {
+      if (tokenId.startsWith('u')) setPick(tokenId);
+      else setOppEdit(tokenId);
+    } else if (pb.frameIndex > 0 && tokenId.startsWith('u')) {
+      setSubToken(tokenId);   // tactic mode: tap one of ours to substitute him
+    }
   };
 
   const togglePublic = () => {
@@ -98,9 +124,32 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
     store.edit(id, t => { t.isPublic = !t.isPublic; });
   };
 
+  const nameOf = (pid: string | null | undefined) => roster.find(p => p.id === pid)?.name ?? '빈 자리';
+  const labelOf = (tid: string) => {
+    if (tid === 'ball') return '공';
+    const tk = scene.tokens.find(t => t.id === tid);
+    return tk ? `${tk.role} ${tk.name || tk.number || ''}`.trim() : tid;
+  };
+  const moved: MovedItem[] = mode === 'tactic' && pb.frameIndex > 0
+    ? tactic.frames[pb.frameIndex - 1] && (() => {
+        const prev = tactic.frames[pb.frameIndex - 1];
+        const far = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y) > 0.02;
+        const list = Object.keys(frame.positions).filter(k => prev.positions[k] && far(prev.positions[k], frame.positions[k])).map(k => ({ id: k, label: labelOf(k) }));
+        if (far(prev.ball, frame.ball)) list.push({ id: 'ball', label: '공' });
+        return list;
+      })()
+    : [];
+  const subs: SubItem[] = pb.frameIndex > 0
+    ? Object.entries(frame.subs).map(([token, pid]) => ({
+        token,
+        label: `${rolesFor(tactic.us.formation)[Number(token.slice(1))]}: ${nameOf(assignAt(tactic, pb.frameIndex - 1)[token])} → ${nameOf(pid)}`,
+      }))
+    : [];
+
   const taken: Record<string, string> = {};
   const usRoles = rolesFor(tactic.us.formation);
   Object.entries(tactic.us.assign).forEach(([k, pid]) => { if (pid) taken[pid] = usRoles[Number(k.slice(1))]; });
+  const votes = cloudEnabled && tactic.matchId ? att.votes : undefined;
 
   return (
     <div className="editor">
@@ -118,6 +167,11 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
           <button className={`chip${tactic.isPublic ? ' on' : ''}`} onClick={togglePublic} aria-pressed={!!tactic.isPublic}>
             {tactic.isPublic ? '팀 공개 중' : '비공개'}
           </button>
+          {isAdmin && (
+            <button className={`chip${tactic.matchId ? ' on' : ''}`} onClick={() => setMatchOpen(true)}>
+              {tactic.matchId ? `경기: ${matchTitle || '연결됨'}` : '경기 연결'}
+            </button>
+          )}
           <span className={`sync ${syncStatus}`} role="status">{SYNC_LABEL[syncStatus]}</span>
         </div>
       )}
@@ -134,10 +188,13 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
             interactive={editable}
             tool={mode === 'tactic' ? tool : 'move'}
             ballDraggable={mode === 'tactic'}
-            selectedId={pick ?? oppEdit}
+            selectedId={pick ?? oppEdit ?? subToken}
+            selectedIds={selected}
             onTapToken={onTapToken}
+            onSelect={setSelected}
             onMoveToken={(tk, pt) => store.moveToken(id, mode === 'lineup' ? 0 : pb.frameIndex, tk, pt)}
-            onMoveBall={pt => store.moveBall(id, pb.frameIndex, pt)}
+            onMoveMany={moves => store.moveTokens(id, pb.frameIndex, moves)}
+            onMoveBall={pt => store.moveBall(id, pb.frameIndex, pt, nearestHolder(scene.tokens, pt))}
             onDraw={d => store.addDrawing(id, pb.frameIndex, d)}
             onErase={did => store.removeDrawing(id, pb.frameIndex, did)}
             onVia={(tk, pt) => store.setVia(id, pb.frameIndex, tk, pt)}
@@ -158,14 +215,27 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
           {mode === 'lineup'
             ? <LineupPanel tactic={tactic} roster={roster} onOpenRoster={() => setRosterOpen(true)} />
             : <TacticPanel tactic={tactic} frameIndex={pb.frameIndex} locked={pb.playing || pb.time != null} showTrails={showTrails}
-                tool={tool} onTool={setTool} onSelectFrame={pb.select} onTrails={setShowTrails} />}
+                tool={tool} onTool={setTool} selectedIds={selected} onSelectIds={setSelected} moved={moved} subs={subs}
+                onSelectFrame={pb.select} onTrails={setShowTrails} />}
         </div>
       </div>
 
       {pick && (
         <PlayerPicker
-          role={usRoles[Number(pick.slice(1))]} roster={roster} taken={taken} current={tactic.us.assign[pick]}
+          role={usRoles[Number(pick.slice(1))]} roster={roster} taken={taken} current={tactic.us.assign[pick]} attendance={votes}
           onPick={pid => { store.assignPlayer(id, pick, pid); setPick(null); }} onClose={() => setPick(null)}
+        />
+      )}
+      {subToken && (
+        <PlayerPicker
+          title={`${usRoles[Number(subToken.slice(1))]} 교체 · 장면 ${pb.frameIndex + 1}부터`}
+          role={usRoles[Number(subToken.slice(1))]} roster={benchAt(tactic, roster, pb.frameIndex)} taken={{}}
+          current={subToken in frame.subs ? (frame.subs[subToken] ?? 'empty') : null} attendance={votes} emptyLabel="교체 취소"
+          onPick={pid => {
+            if (pid === null) store.clearSub(id, pb.frameIndex, subToken); else store.setSub(id, pb.frameIndex, subToken, pid);
+            setSubToken(null);
+          }}
+          onClose={() => setSubToken(null)}
         />
       )}
       {oppEdit && tactic.opp && (
@@ -177,6 +247,7 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
         />
       )}
       {rosterOpen && <RosterManager onClose={() => setRosterOpen(false)} />}
+      {matchOpen && <MatchLinkSheet tactic={tactic} onClose={() => setMatchOpen(false)} />}
       {exportOpen && (
         <Suspense fallback={null}>
           <ExportSheet tactic={tactic} roster={roster} frameIndex={exportFrame} speed={pb.speed} onClose={() => setExportOpen(false)} />

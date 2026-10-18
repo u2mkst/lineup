@@ -38,3 +38,5 @@ export const IconLogo = (p: P) => (
     <path d="M256 180l70 51-27 82h-86l-27-82z" fill="#0b1f17" />
   </svg>
 );
+export const IconSelect = (p: P) => base(<><rect x="4" y="4" width="14" height="14" rx="2" strokeDasharray="3 3" /><path d="M13 13l7 3-3 1-1 3z" fill="currentColor" /></>, p);
+export const IconSwap = (p: P) => base(<><path d="M7 4L3 8l4 4" /><path d="M3 8h13" /><path d="M17 20l4-4-4-4" /><path d="M21 16H8" /></>, p);

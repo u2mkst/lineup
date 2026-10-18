@@ -3,6 +3,7 @@ import { fetchPublicTactic } from '../lib/cloud';
 import { useStore } from '../lib/store';
 import { toast } from '../lib/toast';
 import type { Tactic } from '../types';
+import { TacticComments } from './TacticComments';
 import { Viewer } from './Viewer';
 
 /** A team-public tactic, readable without signing in. */
@@ -35,6 +36,7 @@ export function PublicView({ id, onOpen, onHome }: { id: string; onOpen: (id: st
         <p className="muted">{state.us.formation}{state.opp ? ` vs ${state.opp.formation}` : ''} · 장면 {state.frames.length}개</p>
       </header>
       <Viewer tactic={state} roster={roster} />
+      <TacticComments tacticId={state.id} />
       <div className="btn-row center" style={{ marginTop: 20 }}>
         <button className="btn primary lg" onClick={() => { onOpen(importTactic(state, [])); toast('내 전술로 복사했어요'); }}>내 전술로 복사</button>
         <button className="btn ghost lg" onClick={onHome}>목록으로</button>
