@@ -9,7 +9,12 @@
 - **내보내기**: 라인업 PNG, 장면 PNG, 전술 GIF, 전술 영상(mp4/webm), 이미지 템플릿 3종(다크/라이트/네이비). 모바일에서는 공유창으로 카카오톡 전송
 - **링크 공유**: 전술 전체를 링크 하나로 공유 (서버 없이 URL에 담김)
 - **PWA**: 홈 화면에 설치, 오프라인 동작
-- 데이터는 브라우저(localStorage)에 자동 저장되고, 홈에서 JSON 백업/복원을 할 수 있어요.
+- **곡선 이동 경로**: 장면 사이 이동 경로 가운데 점을 끌면 선수·공이 곡선으로 움직여요
+- **서버 연동 (Supabase)**
+  - 선수 명단은 서버가 기준이고 로그인 없이도 볼 수 있어요
+  - 관리자(가입한 계정 전부): 선수 추가·삭제·수정, 등번호 변경과 맞교체, 전술 자동 서버 저장, "팀 공개" 전환
+  - 팀원은 로그인 없이 "팀 공개" 전술을 보고 내 전술로 복사할 수 있어요
+- 로그인하지 않으면 전술은 브라우저(localStorage)에 저장되고, 홈에서 JSON 백업/복원을 할 수 있어요.
 
 ## 개발
 
@@ -20,4 +25,12 @@ npm test        # 단위 테스트 (vitest)
 npm run build   # 타입체크 + 빌드 (dist/)
 ```
 
-React + Vite + TypeScript + zustand. 배포는 Vercel (Framework: Vite, 빌드 `npm run build`, 출력 `dist`).
+## Supabase 설정
+
+1. 새 프로젝트에서 `supabase/migrations/*.sql`을 SQL Editor로 실행 (테이블, RLS 정책, 기본 명단)
+2. `.env.local`에 `.env.example`처럼 URL과 publishable key 입력 (Vercel에는 같은 이름의 환경변수)
+3. Auth 설정의 "Confirm email"을 끄면 가입 즉시 사용할 수 있어요 (켜 두면 인증 메일이 필요)
+
+환경변수가 없으면 서버 없이 이 기기에서만 동작해요. 접근 제어는 전부 RLS가 맡고, 브라우저에 들어가는 키는 publishable key뿐이에요.
+
+React + Vite + TypeScript + zustand + supabase-js. 배포는 Vercel (Framework: Vite, 빌드 `npm run build`, 출력 `dist`).

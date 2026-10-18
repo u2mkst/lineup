@@ -179,6 +179,7 @@ export const useStore = create<State>()(
           if (!src) return null;
           const c = structuredClone(src);
           c.id = uid();
+          delete c.isPublic;
           c.name = `${src.name} 복사본`.slice(0, 24);
           c.updatedAt = Date.now();
           c.frames.forEach(f => {
@@ -325,6 +326,7 @@ export const useStore = create<State>()(
           const known = new Set(get().roster.map(p => p.id));
           const add = players.filter(p => !known.has(p.id));
           const copy = { ...structuredClone(t), id: uid(), updatedAt: Date.now() };
+          delete copy.isPublic;
           set(s => ({ roster: [...s.roster, ...add], tactics: [copy, ...s.tactics] }));
           return copy.id;
         },

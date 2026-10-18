@@ -69,6 +69,7 @@ export function normalizeTactic(raw: unknown): Tactic | null {
     id: str(raw.id, '', 60) || uid(),
     name: str(raw.name, '전술', 24),
     updatedAt: num(raw.updatedAt, Date.now()),
+    ...(raw.isPublic === true ? { isPublic: true } : {}),
     us: { name: str(us.name, '우리팀', 12), color: color(us.color, '#2563eb'), formation: usF, assign },
     opp,
     frames: raw.frames.slice(0, 30).map(f => normalizeFrame(f, base)),

@@ -187,3 +187,49 @@ describe('curves', () => {
     expect(bad.frames[0].via).toEqual({ u3: { x: 1, y: 0 } });
   });
 });
+
+describe('cloud sync', () => {
+  const t = (id: string, updatedAt: number, extra = {}) => ({ ...normalizeTactic({ us: {}, frames: [{}] })!, id, updatedAt, ...extra });
+  const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+
+  it('pulls what is newer on the server and pushes what is newer here', async () => {
+    const { planSync } = await import('../sync');
+    const local = [t(A, 100), t(B, 300), t(C, 50)];
+    const remote = [t(A, 200), t(B, 300), t('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 10)];
+    const plan = planSync(local, remote);
+    expect(plan.apply.map(x => x.id).sort()).toEqual([A, 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'].sort()); // newer remote, remote-only
+    expect(plan.push.map(x => x.id)).toEqual([C]);                                                       // local-only; B is in sync
+  });
+  it('never pushes tactics whose id is not a uuid', async () => {
+    const { planSync } = await import('../sync');
+    expect(planSync([t('not-a-uuid', 1)], []).push).toEqual([]);
+  });
+  it('keeps isPublic through validation but not through share links or copies', async () => {
+    expect(normalizeTactic({ us: {}, frames: [{}], isPublic: true })!.isPublic).toBe(true);
+    expect(normalizeTactic({ us: {}, frames: [{}], isPublic: 'yes' })!.isPublic).toBeUndefined();
+    const id = fresh();
+    useStore.getState().edit(id, x => { x.isPublic = true; });
+    const back = await decodePayload(await encodePayload(buildPayload(get(id), useStore.getState().roster)));
+    expect(back!.tactic.isPublic).toBeUndefined();
+    const copy = useStore.getState().duplicateTactic(id)!;
+    expect(get(copy).isPublic).toBeUndefined();
+    expect(get(id).isPublic).toBe(true);
+  });
+});
+
+describe('cloud errors and roster order', () => {
+  it('explains database errors in plain Korean', async () => {
+    const { explain } = await import('../cloud');
+    expect(explain({ code: '23505' }).message).toContain('등번호');
+    expect(explain({ code: '42501' }).message).toContain('관리자');
+    expect(explain({ message: 'new row violates row-level security policy' }).message).toContain('관리자');
+    expect(explain({ message: 'TypeError: Failed to fetch' }).message).toContain('인터넷');
+  });
+  it('sorts GK, DF, MF, FW and then by shirt number', async () => {
+    const { sortRoster } = await import('../roster');
+    const p = (number: string, pos: 'GK' | 'DF' | 'MF' | 'FW') => ({ id: number, number, name: number, pos });
+    expect(sortRoster([p('9', 'FW'), p('10', 'MF'), p('2', 'DF'), p('1', 'GK'), p('3', 'DF')]).map(x => x.number)).toEqual(['1', '2', '3', '10', '9']);
+  });
+});

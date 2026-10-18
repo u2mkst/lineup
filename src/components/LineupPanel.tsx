@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { useAuth } from '../lib/auth';
 import { COLORS, useStore } from '../lib/store';
+import { cloudEnabled } from '../lib/supabase';
 import { benchOf } from '../lib/scene';
 import type { Player, Tactic } from '../types';
 import { FormationSheet } from './FormationSheet';
@@ -20,12 +22,11 @@ function Colors({ value, onChange }: { value: string; onChange: (c: string) => v
 interface Props {
   tactic: Tactic;
   roster: Player[];
-  /** where the roster is edited: admins get an edit button */
-  canEditRoster: boolean;
   onOpenRoster: () => void;
 }
 
-export function LineupPanel({ tactic, roster, canEditRoster, onOpenRoster }: Props) {
+export function LineupPanel({ tactic, roster, onOpenRoster }: Props) {
+  const isAdmin = useAuth(a => a.isAdmin);
   const s = useStore();
   const id = tactic.id;
   const bench = benchOf(tactic, roster);
@@ -86,7 +87,7 @@ export function LineupPanel({ tactic, roster, canEditRoster, onOpenRoster }: Pro
           {bench.length === 0 && <span className="muted small">모든 선수가 배치됐어요.</span>}
         </div>
         <div className="btn-row">
-          <button className="btn sm ghost" onClick={onOpenRoster}>{canEditRoster ? '선수 명단 관리' : '선수 명단 보기'}</button>
+          <button className="btn sm ghost" onClick={onOpenRoster}>{isAdmin || !cloudEnabled ? '선수 명단 관리' : '선수 명단 보기'}</button>
         </div>
       </Section>
 

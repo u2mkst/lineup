@@ -52,6 +52,8 @@ export interface Tactic {
   id: string;
   name: string;
   updatedAt: number;
+  /** visible to everyone (no login needed) once synced to the server */
+  isPublic?: boolean;
   us: UsTeam;
   opp: OppTeam | null;
   frames: Frame[];

@@ -12,6 +12,7 @@ const round = (n: number) => Math.round(n * 1000) / 1000;
 
 function slim(t: Tactic): Tactic {
   const c = structuredClone(t);
+  delete c.isPublic; // a link copy is always private
   const r = (p: { x: number; y: number }) => { p.x = round(p.x); p.y = round(p.y); };
   c.frames.forEach(f => {
     Object.values(f.positions).forEach(r);

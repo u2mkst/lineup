@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { decodePayload } from '../lib/share';
-import { buildScene } from '../lib/scene';
 import { useStore } from '../lib/store';
 import { toast } from '../lib/toast';
 import type { Player, Tactic } from '../types';
-import { Pitch } from './Pitch';
+import { Viewer } from './Viewer';
 
 type Res = { tactic: Tactic; players: Player[] } | 'bad' | null;
 
@@ -38,10 +37,8 @@ export function SharedImport({ code, onOpen, onHome }: { code: string; onOpen: (
         <h1>{tactic.name}</h1>
         <p className="muted">{tactic.us.formation}{tactic.opp ? ` vs ${tactic.opp.formation}` : ''} · 장면 {tactic.frames.length}개</p>
       </header>
-      <div className="shared-pitch">
-        <Pitch interactive={false} scene={buildScene(tactic, roster, tactic.frames[0].positions, null)} />
-      </div>
-      <div className="btn-row center">
+      <Viewer tactic={tactic} roster={roster} />
+      <div className="btn-row center" style={{ marginTop: 20 }}>
         <button className="btn primary lg" onClick={() => { onOpen(importTactic(tactic, players)); toast('내 전술에 추가했어요'); }}>내 전술로 열기</button>
         <button className="btn ghost lg" onClick={onHome}>취소</button>
       </div>
