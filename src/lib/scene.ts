@@ -1,14 +1,24 @@
 import { rolesFor, tokenIds } from './layout';
-import type { Player, Pt, Scene, SceneDrawing, SceneToken, Tactic } from '../types';
+import type { Frame, Player, Pt, Scene, SceneDrawing, SceneToken, Tactic } from '../types';
+
+export interface SceneOpts {
+  /** previous frame, to draw movement trails from */
+  prev?: Frame | null;
+  /** `via` overrides, e.g. while a curve handle is being dragged */
+  via?: Record<string, Pt>;
+  drawings?: SceneDrawing[];
+}
 
 export function buildScene(
   tactic: Tactic,
   roster: Player[],
   positions: Record<string, Pt>,
   ball: Pt | null,
-  prevPositions?: Record<string, Pt> | null,
-  drawings: SceneDrawing[] = [],
+  opts: SceneOpts = {},
+  frame?: Frame,
 ): Scene {
+  const { prev = null, drawings = [] } = opts;
+  const via = { ...(frame?.via ?? {}), ...(opts.via ?? {}) };
   const tokens: SceneToken[] = [];
   const usRoles = rolesFor(tactic.us.formation);
   tokenIds('us').forEach((id, i) => {
@@ -36,13 +46,13 @@ export function buildScene(
     });
   }
   const trails: Scene['trails'] = [];
-  if (prevPositions) {
+  if (prev) {
+    const moved = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y) > 0.02;
     for (const tk of tokens) {
-      const from = prevPositions[tk.id];
-      if (from && Math.hypot(from.x - tk.x, from.y - tk.y) > 0.02) {
-        trails.push({ id: tk.id, from, to: { x: tk.x, y: tk.y }, color: tk.color });
-      }
+      const from = prev.positions[tk.id];
+      if (from && moved(from, tk)) trails.push({ id: tk.id, from, to: { x: tk.x, y: tk.y }, via: via[tk.id], color: tk.color });
     }
+    if (ball && moved(prev.ball, ball)) trails.push({ id: 'ball', from: prev.ball, to: ball, via: via.ball, color: '#ffffff' });
   }
   return { tokens, ball, trails, drawings };
 }

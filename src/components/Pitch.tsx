@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
+import { controlPoint, mid } from '../lib/curve';
 import { inkFor, shade } from '../lib/scene';
-import type { DrawKind, Pt, Scene, SceneToken } from '../types';
+import type { DrawKind, Pt, Scene, SceneToken, SceneTrail } from '../types';
 
 const W = 600;
 const H = 800;
@@ -23,6 +24,8 @@ interface Props {
   onTapToken?: (id: string) => void;
   onDraw?: (d: { kind: DrawKind; a: Pt; b: Pt }) => void;
   onErase?: (id: string) => void;
+  /** bend a movement trail; `null` straightens it again */
+  onVia?: (id: string, pt: Pt | null) => void;
 }
 
 type Drag = { id: string; pt: Pt; sx: number; sy: number; moved: boolean };
@@ -71,6 +74,21 @@ function arrowGeom(a: Pt, b: Pt, w: number) {
   };
 }
 
+/** SVG path for a movement trail, pulled back so it does not run under the markers. */
+function trailGeom(t: SceneTrail, via: Pt | undefined) {
+  const pad = (t.id === 'ball' ? 14 : R) + 4;
+  const a = { x: t.from.x * W, y: t.from.y * H };
+  const b = { x: t.to.x * W, y: t.to.y * H };
+  const c = via ? controlPoint(a, b, { x: via.x * W, y: via.y * H }) : null;
+  const unit = (p: Pt, q: Pt) => { const d = Math.hypot(q.x - p.x, q.y - p.y) || 1; return { x: (q.x - p.x) / d, y: (q.y - p.y) / d }; };
+  const s0 = unit(a, c ?? b);
+  const e0 = unit(c ?? a, b);
+  const S = { x: a.x + s0.x * pad, y: a.y + s0.y * pad };
+  const E = { x: b.x - e0.x * (pad + 4), y: b.y - e0.y * (pad + 4) };
+  const handle = via ? { x: via.x * W, y: via.y * H } : mid(a, b);
+  return { d: c ? `M${S.x} ${S.y} Q${c.x} ${c.y} ${E.x} ${E.y}` : `M${S.x} ${S.y} L${E.x} ${E.y}`, handle, len: Math.hypot(b.x - a.x, b.y - a.y) };
+}
+
 function DrawingShape({ kind, a, b, alpha = 1 }: { kind: DrawKind; a: Pt; b: Pt; alpha?: number }) {
   if (kind === 'zone') {
     const r = Math.hypot((b.x - a.x) * W, (b.y - a.y) * H);
@@ -89,7 +107,7 @@ function DrawingShape({ kind, a, b, alpha = 1 }: { kind: DrawKind; a: Pt; b: Pt;
 
 export function Pitch({
   scene, interactive, tool = 'move', ballDraggable, selectedId, mini,
-  onMoveToken, onMoveBall, onTapToken, onDraw, onErase,
+  onMoveToken, onMoveBall, onTapToken, onDraw, onErase, onVia,
 }: Props) {
   const svg = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -128,7 +146,11 @@ export function Pitch({
       return;
     }
     if (!drag) return;
-    if (drag.moved) {
+    if (drag.id.startsWith('via:')) {
+      const id = drag.id.slice(4);
+      if (drag.moved) onVia?.(id, drag.pt);
+      else if (scene.trails.find(t => t.id === id)?.via) onVia?.(id, null);
+    } else if (drag.moved) {
       if (drag.id === 'ball') onMoveBall?.(drag.pt);
       else onMoveToken?.(drag.id, drag.pt);
     } else if (drag.id !== 'ball') {
@@ -182,17 +204,10 @@ export function Pitch({
       </defs>
       <PitchLines />
       {scene.trails.map(t => {
-        const a = { x: t.from.x * W, y: t.from.y * H };
-        const b = { x: t.to.x * W, y: t.to.y * H };
-        const d = Math.hypot(b.x - a.x, b.y - a.y);
-        const k = (R + 4) / d;
-        return (
-          <line
-            key={t.id} x1={a.x + (b.x - a.x) * k} y1={a.y + (b.y - a.y) * k}
-            x2={b.x - (b.x - a.x) * (k + 0.02)} y2={b.y - (b.y - a.y) * (k + 0.02)}
-            stroke="rgba(255,255,255,.75)" strokeWidth={3} strokeDasharray="7 6" markerEnd="url(#arrowHead)"
-          />
-        );
+        const live = drag?.moved && drag.id === `via:${t.id}` ? drag.pt : t.via;
+        const g = trailGeom(t, live);
+        if (g.len < 20) return null;
+        return <path key={t.id} d={g.d} fill="none" stroke="rgba(255,255,255,.78)" strokeWidth={3} strokeDasharray="7 6" strokeLinecap="round" markerEnd="url(#arrowHead)" />;
       })}
       <marker id="arrowHead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
         <path d="M0,0 L8,4 L0,8 z" fill="rgba(255,255,255,.85)" />
@@ -238,6 +253,17 @@ export function Pitch({
                 {tk.name && !mini && <text className="tk-name" y={R + 17}>{tk.name}</text>}
               </>
             )}
+          </g>
+        );
+      })}
+      {moving && tool === 'move' && scene.trails.map(t => {
+        const live = drag?.moved && drag.id === `via:${t.id}` ? drag.pt : t.via;
+        const g = trailGeom(t, live);
+        if (g.len < 20) return null;
+        return (
+          <g key={`h-${t.id}`} className={`via-handle${live ? ' bent' : ''}`} transform={`translate(${g.handle.x} ${g.handle.y})`} onPointerDown={down(`via:${t.id}`)}>
+            <circle r={20} fill="transparent" />
+            <circle r={8} />
           </g>
         );
       })}

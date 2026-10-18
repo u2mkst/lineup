@@ -16,9 +16,14 @@ interface Props {
 
 export function PlayerPicker({ role, roster, taken, current, onPick, onClose }: Props) {
   const [filter, setFilter] = useState<'전체' | Pos>('전체');
-  const list = useMemo(() => roster.filter(p => filter === '전체' || p.pos === filter), [roster, filter]);
+  const [q, setQ] = useState('');
+  const list = useMemo(
+    () => roster.filter(p => (filter === '전체' || p.pos === filter) && (!q.trim() || p.name.includes(q.trim()) || p.number === q.trim())),
+    [roster, filter, q],
+  );
   return (
     <Sheet title={`${role} 선수 선택`} onClose={onClose}>
+      <input className="search-in" placeholder="이름이나 번호로 찾기" value={q} onChange={e => setQ(e.target.value)} aria-label="선수 검색" />
       <div className="chips">
         {FILTERS.map(f => (
           <button key={f} className={`chip${filter === f ? ' on' : ''}`} onClick={() => setFilter(f)}>{f}</button>
@@ -33,7 +38,7 @@ export function PlayerPicker({ role, roster, taken, current, onPick, onClose }: 
             {taken[p.id] && p.id !== current && <span className="pk-taken">{taken[p.id]}에 배치됨</span>}
           </button>
         ))}
-        {list.length === 0 && <p className="muted">해당하는 선수가 없어요. 명단에서 추가해 주세요.</p>}
+        {list.length === 0 && <p className="muted small">해당하는 선수가 없어요.</p>}
       </div>
       {current && <button className="btn ghost danger" onClick={() => onPick(null)}>이 자리 비우기</button>}
     </Sheet>

@@ -16,6 +16,7 @@ function slim(t: Tactic): Tactic {
   c.frames.forEach(f => {
     Object.values(f.positions).forEach(r);
     r(f.ball);
+    Object.values(f.via).forEach(r);
     f.drawings.forEach(d => { r(d.a); r(d.b); });
   });
   return c;

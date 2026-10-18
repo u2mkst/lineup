@@ -1,4 +1,5 @@
 import type { Frame, Pt, SceneDrawing } from '../types';
+import { along } from './curve';
 
 /** ms spent standing still on a frame, and ms spent travelling to the next. */
 export const HOLD = 700;
@@ -15,7 +16,6 @@ export function frameStart(index: number): number {
 }
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-const lerp = (a: Pt, b: Pt, t: number): Pt => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
 
 export interface Sample {
   positions: Record<string, Pt>;
@@ -44,9 +44,9 @@ export function sampleAt(frames: Frame[], ms: number): Sample {
   const b = frames[i + 1];
   const positions: Record<string, Pt> = {};
   for (const id of Object.keys(a.positions)) {
-    positions[id] = lerp(a.positions[id], b.positions[id] ?? a.positions[id], t);
+    positions[id] = along(a.positions[id], b.positions[id] ?? a.positions[id], b.via?.[id], t);
   }
   // Old annotations fade out in the first third of the move, new ones fade in during the last third.
   const drawings = [...withAlpha(a, 1 - t * 3), ...withAlpha(b, t * 3 - 2)];
-  return { positions, ball: lerp(a.ball, b.ball, t), noteIndex: i + 1, frameIndex: t > 0.5 ? i + 1 : i, drawings };
+  return { positions, ball: along(a.ball, b.ball, b.via?.ball, t), noteIndex: i + 1, frameIndex: t > 0.5 ? i + 1 : i, drawings };
 }

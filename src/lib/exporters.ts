@@ -30,7 +30,7 @@ function frameCanvas(width: number) {
 
 function drawAt(ctx: CanvasRenderingContext2D, tactic: Tactic, roster: Player[], ms: number, width: number, theme: Theme) {
   const s = sampleAt(tactic.frames, ms);
-  const scene = buildScene(tactic, roster, s.positions, s.ball, null, s.drawings);
+  const scene = buildScene(tactic, roster, s.positions, s.ball, { drawings: s.drawings });
   drawFrameCard(ctx, tactic, scene, {
     width,
     theme,
@@ -42,8 +42,8 @@ function drawAt(ctx: CanvasRenderingContext2D, tactic: Tactic, roster: Player[],
 export async function exportFramePng(tactic: Tactic, roster: Player[], index: number, theme: Theme): Promise<Output> {
   const f = tactic.frames[index];
   const { canvas, ctx } = frameCanvas(1080);
-  const prev = tactic.frames[index - 1]?.positions ?? null;
-  drawFrameCard(ctx, tactic, buildScene(tactic, roster, f.positions, f.ball, prev, f.drawings.map(d => ({ ...d, alpha: 1 }))), {
+  const prev = tactic.frames[index - 1] ?? null;
+  drawFrameCard(ctx, tactic, buildScene(tactic, roster, f.positions, f.ball, { prev, drawings: f.drawings.map(d => ({ ...d, alpha: 1 })) }, f), {
     width: 1080,
     theme,
     label: `장면 ${index + 1} / ${tactic.frames.length}`,

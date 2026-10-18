@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { formationRoles } from '../../data/formations';
 import { HOLD, MOVE, sampleAt, totalDuration } from '../anim';
+import { along, controlPoint } from '../curve';
 import { layoutFormation, rolesFor } from '../layout';
 import { buildPayload, decodePayload, encodePayload } from '../share';
 import { useStore } from '../store';
@@ -34,7 +35,7 @@ describe('layout', () => {
 });
 
 describe('anim', () => {
-  const mk = (x: number, n: string) => ({ id: n, note: n, drawings: [{ id: `d${n}`, kind: 'run' as const, a: { x: 0, y: 0 }, b: { x: 1, y: 1 } }], positions: { u0: { x, y: 0.5 } }, ball: { x, y: 0.5 } });
+  const mk = (x: number, n: string) => ({ id: n, note: n, via: {}, drawings: [{ id: `d${n}`, kind: 'run' as const, a: { x: 0, y: 0 }, b: { x: 1, y: 1 } }], positions: { u0: { x, y: 0.5 } }, ball: { x, y: 0.5 } });
   const frames = [mk(0, 'a'), mk(1, 'b')];
   it('holds, travels, then lands on the last frame', () => {
     expect(totalDuration(2)).toBe(HOLD + MOVE + HOLD);
@@ -136,5 +137,53 @@ describe('store', () => {
     expect(useStore.getState().importBackup({ tactics: [t, { broken: true }] })).toBe(0); // same id already present
     useStore.setState({ tactics: [] });
     expect(useStore.getState().importBackup({ tactics: [t, { broken: true }] })).toBe(1);
+  });
+});
+
+describe('curves', () => {
+  const a = { x: 0, y: 1 };
+  const b = { x: 1, y: 1 };
+  it('passes through the via point halfway and keeps its endpoints', () => {
+    const via = { x: 0.5, y: 0.2 };
+    expect(along(a, b, via, 0)).toEqual(a);
+    const m = along(a, b, via, 0.5);
+    expect(m.x).toBeCloseTo(0.5, 9);
+    expect(m.y).toBeCloseTo(0.2, 9);
+    expect(along(a, b, via, 1)).toEqual(b);
+    expect(controlPoint(a, b, { x: 0.5, y: 1 })).toEqual({ x: 0.5, y: 1 });
+  });
+  it('animates along the bend and straight when there is none', () => {
+    const f = (x: number, via = {}) => ({ id: String(x), note: '', via, drawings: [], positions: { u0: { x, y: 1 } }, ball: { x, y: 1 } });
+    const bent = [f(0), f(1, { u0: { x: 0.5, y: 0.2 } })];
+    const t = HOLD + MOVE / 2;
+    expect(sampleAt(bent, t).positions.u0.y).toBeCloseTo(0.2, 6);
+    expect(sampleAt([f(0), f(1)], t).positions.u0.y).toBe(1);
+  });
+  it('stores, clears and invalidates curves', () => {
+    const id = fresh();
+    const s = useStore.getState();
+    s.addFrame(id, 0);
+    s.setVia(id, 1, 'u3', { x: 0.4, y: 0.4 });
+    expect(get(id).frames[1].via.u3).toEqual({ x: 0.4, y: 0.4 });
+    s.setVia(id, 0, 'u3', { x: 0.1, y: 0.1 });            // first frame has no way in
+    expect(get(id).frames[0].via).toEqual({});
+    s.addFrame(id, 1);
+    s.moveFrame(id, 1, 2);                                   // reordering resets curves
+    expect(get(id).frames.every(f => Object.keys(f.via).length === 0)).toBe(true);
+    s.setVia(id, 1, 'u3', { x: 0.4, y: 0.4 });
+    s.setVia(id, 1, 'u3', null);
+    expect(get(id).frames[1].via).toEqual({});
+  });
+  it('round-trips curves through a share code and drops junk', async () => {
+    const id = fresh();
+    const s = useStore.getState();
+    s.addFrame(id, 0);
+    s.setVia(id, 1, 'u3', { x: 0.4123456, y: 0.4 });
+    s.setVia(id, 1, 'ball', { x: 0.2, y: 0.2 });
+    const back = await decodePayload(await encodePayload(buildPayload(get(id), s.roster)));
+    expect(back!.tactic.frames[1].via.u3.x).toBeCloseTo(0.412, 3);
+    expect(back!.tactic.frames[1].via.ball).toEqual({ x: 0.2, y: 0.2 });
+    const bad = normalizeTactic({ ...get(id), frames: [{ via: { nope: { x: 1, y: 1 }, u3: { x: 5, y: -1 } } }] })!;
+    expect(bad.frames[0].via).toEqual({ u3: { x: 1, y: 0 } });
   });
 });

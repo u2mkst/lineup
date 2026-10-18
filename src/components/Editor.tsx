@@ -9,7 +9,8 @@ import { OppEditor } from './OppEditor';
 import { Pitch, type Tool } from './Pitch';
 import { PlayerPicker } from './PlayerPicker';
 import { RosterEditor } from './RosterEditor';
-import { FrameBar, TacticPanel } from './TacticPanel';
+import { PlayerBar } from './PlayerBar';
+import { TacticPanel } from './TacticPanel';
 
 const ExportSheet = lazy(() => import('./ExportSheet').then(m => ({ default: m.ExportSheet })));
 
@@ -65,11 +66,11 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
     if (mode === 'lineup') return buildScene(tactic, roster, tactic.frames[0].positions, null);
     if (time != null) {
       const s = sampleAt(tactic.frames, time);
-      return buildScene(tactic, roster, s.positions, s.ball, null, s.drawings);
+      return buildScene(tactic, roster, s.positions, s.ball, { drawings: s.drawings });
     }
     const f = tactic.frames[clampedFrame];
-    const prev = showTrails && clampedFrame > 0 ? tactic.frames[clampedFrame - 1].positions : null;
-    return buildScene(tactic, roster, f.positions, f.ball, prev, f.drawings.map(d => ({ ...d, alpha: 1 })));
+    const prev = showTrails && clampedFrame > 0 ? tactic.frames[clampedFrame - 1] : null;
+    return buildScene(tactic, roster, f.positions, f.ball, { prev, drawings: f.drawings.map(d => ({ ...d, alpha: 1 })) }, f);
   }, [tactic, roster, mode, time, clampedFrame, showTrails]);
 
   const togglePlay = () => {
@@ -136,13 +137,13 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
         <button className="btn sm primary" onClick={() => setExportOpen(true)}>내보내기</button>
       </header>
 
-      <div className="tabs" role="tablist">
-        <button role="tab" aria-selected={mode === 'lineup'} className={mode === 'lineup' ? 'on' : ''} onClick={() => switchMode('lineup')}>라인업 짜기</button>
-        <button role="tab" aria-selected={mode === 'tactic'} className={mode === 'tactic' ? 'on' : ''} onClick={() => switchMode('tactic')}>전술 짜기</button>
+      <div className="segmented" role="tablist">
+        <button role="tab" aria-selected={mode === 'lineup'} className={mode === 'lineup' ? 'on' : ''} onClick={() => switchMode('lineup')}>라인업</button>
+        <button role="tab" aria-selected={mode === 'tactic'} className={mode === 'tactic' ? 'on' : ''} onClick={() => switchMode('tactic')}>전술</button>
       </div>
 
       <div className="workspace">
-        <div className="board">
+        <div className={`board ${mode}`}>
           <Pitch
             scene={scene}
             interactive={editable}
@@ -154,21 +155,24 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
             onMoveBall={pt => store.moveBall(id, clampedFrame, pt)}
             onDraw={d => store.addDrawing(id, clampedFrame, d)}
             onErase={did => store.removeDrawing(id, clampedFrame, did)}
+            onVia={(tk, pt) => store.setVia(id, clampedFrame, tk, pt)}
           />
-          {mode === 'tactic' && <FrameBar tactic={tactic} frameIndex={clampedFrame} time={time} onSelectFrame={selectFrame} />}
           {mode === 'tactic' && (
-            <div className="board-note">
-              <span className="board-step">{time != null ? `장면 ${sampleAt(tactic.frames, time).noteIndex + 1}` : `장면 ${clampedFrame + 1}`} / {tactic.frames.length}</span>
-              {liveNote && <span>{liveNote}</span>}
-            </div>
+            <>
+              <PlayerBar tactic={tactic} frameIndex={clampedFrame} playing={playing} time={time} speed={speed}
+                onSelectFrame={selectFrame} onTogglePlay={togglePlay} onScrub={scrub} onSpeed={setSpeed} />
+              <p className="board-note">
+                <span className="board-step">장면 {(time != null ? sampleAt(tactic.frames, time).noteIndex : clampedFrame) + 1}/{tactic.frames.length}</span>
+                {liveNote ? <span>{liveNote}</span> : <span className="muted">설명 없음</span>}
+              </p>
+            </>
           )}
         </div>
         <div className="panel">
           {mode === 'lineup'
-            ? <LineupPanel tactic={tactic} roster={roster} onOpenRoster={() => setRosterOpen(true)} />
-            : <TacticPanel tactic={tactic} frameIndex={clampedFrame} playing={playing} time={time} speed={speed}
-                showTrails={showTrails} tool={tool} onTool={setTool} onSelectFrame={selectFrame} onTogglePlay={togglePlay}
-                onScrub={scrub} onSpeed={setSpeed} onTrails={setShowTrails} />}
+            ? <LineupPanel tactic={tactic} roster={roster} canEditRoster onOpenRoster={() => setRosterOpen(true)} />
+            : <TacticPanel tactic={tactic} frameIndex={clampedFrame} locked={playing || time != null} showTrails={showTrails}
+                tool={tool} onTool={setTool} onSelectFrame={selectFrame} onTrails={setShowTrails} />}
         </div>
       </div>
 

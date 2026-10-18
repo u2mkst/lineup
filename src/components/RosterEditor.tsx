@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { uid } from '../lib/id';
 import { useStore } from '../lib/store';
+import { IconTrash } from './Icons';
 import { Sheet } from './Sheet';
 import type { Player, Pos } from '../types';
 
@@ -23,7 +24,7 @@ export function RosterEditor({ onClose }: { onClose: () => void }) {
     <Sheet title="선수 명단" onClose={onClose}>
       <p className="muted small">우리 팀 선수를 등록해 두면 라인업에서 골라 쓸 수 있어요. 변경 내용은 이 기기에 자동 저장돼요.</p>
       <div className="roster-grid head"><span>번호</span><span>이름</span><span>포지션</span><span /></div>
-      <div className="roster-grid add">
+      <div className="roster-grid">
         <input placeholder="번호" inputMode="numeric" maxLength={3} value={draft.number} onChange={e => setDraft({ ...draft, number: e.target.value })} />
         <input placeholder="새 선수 이름" maxLength={8} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })}
           onKeyDown={e => e.key === 'Enter' && add()} />
@@ -36,7 +37,7 @@ export function RosterEditor({ onClose }: { onClose: () => void }) {
             <input value={p.number} inputMode="numeric" maxLength={3} onChange={e => patch(p.id, { number: e.target.value })} />
             <input value={p.name} maxLength={8} onChange={e => patch(p.id, { name: e.target.value })} />
             <select value={p.pos} onChange={e => patch(p.id, { pos: e.target.value as Pos })}>{POS.map(x => <option key={x}>{x}</option>)}</select>
-            <button className="icon-btn" aria-label={`${p.name} 삭제`} onClick={() => setRoster(roster.filter(x => x.id !== p.id))}>🗑</button>
+            <button className="icon-btn" aria-label={`${p.name} 삭제`} onClick={() => setRoster(roster.filter(x => x.id !== p.id))}><IconTrash width={18} height={18} /></button>
           </div>
         ))}
       </div>

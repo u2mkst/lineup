@@ -33,15 +33,15 @@ export function SharedImport({ code, onOpen, onHome }: { code: string; onOpen: (
   const roster = players;
   return (
     <div className="home shared">
-      <header className="hero">
+      <header className="home-hero">
         <p className="muted small">공유받은 전술</p>
         <h1>{tactic.name}</h1>
-        <p>{tactic.us.formation}{tactic.opp ? ` vs ${tactic.opp.formation}` : ''} · 장면 {tactic.frames.length}개</p>
+        <p className="muted">{tactic.us.formation}{tactic.opp ? ` vs ${tactic.opp.formation}` : ''} · 장면 {tactic.frames.length}개</p>
       </header>
       <div className="shared-pitch">
         <Pitch interactive={false} scene={buildScene(tactic, roster, tactic.frames[0].positions, null)} />
       </div>
-      <div className="row center gap">
+      <div className="btn-row center">
         <button className="btn primary lg" onClick={() => { onOpen(importTactic(tactic, players)); toast('내 전술에 추가했어요'); }}>내 전술로 열기</button>
         <button className="btn ghost lg" onClick={onHome}>취소</button>
       </div>

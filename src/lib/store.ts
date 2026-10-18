@@ -14,7 +14,7 @@ const HISTORY_LIMIT = 60;
 const STORAGE_KEY = 'chukgubang:v1';
 
 function makeFrame(positions: Record<string, Pt>, ball: Pt = BALL_START, note = ''): Frame {
-  return { id: uid(), note, drawings: [], positions, ball };
+  return { id: uid(), note, drawings: [], via: {}, positions, ball };
 }
 
 function layoutPositions(formation: string, side: 'us' | 'opp', hasOpp: boolean): Record<string, Pt> {
@@ -82,6 +82,8 @@ interface State {
   addFrame: (id: string, after: number) => number;
   deleteFrame: (id: string, index: number) => void;
   moveFrame: (id: string, from: number, to: number) => void;
+  /** Bend (or with `null`, straighten) the path into `frame` for a token or the ball. */
+  setVia: (id: string, frame: number, token: string, pt: Pt | null) => void;
   addDrawing: (id: string, frame: number, d: Omit<Drawing, 'id'>) => void;
   removeDrawing: (id: string, frame: number, drawingId: string) => void;
   clearDrawings: (id: string, frame: number) => void;
@@ -158,6 +160,7 @@ export const useStore = create<State>()(
         first.positions = layoutPositions(t.us.formation, 'us', !!t.opp);
         if (t.opp) Object.assign(first.positions, layoutPositions(t.opp.formation, 'opp', true));
         first.drawings = [];
+        first.via = {};
         t.frames = [first];
       };
 
@@ -280,13 +283,25 @@ export const useStore = create<State>()(
         },
         deleteFrame: (id, index) =>
           edit(id, t => {
-            if (t.frames.length > 1) t.frames.splice(index, 1);
+            if (t.frames.length <= 1) return;
+            t.frames.splice(index, 1);
+            // The frame that followed now arrives from a different place.
+            if (t.frames[index]) t.frames[index].via = {};
           }),
         moveFrame: (id, from, to) =>
           edit(id, t => {
             if (to < 0 || to >= t.frames.length || from === to) return;
             const [f] = t.frames.splice(from, 1);
             t.frames.splice(to, 0, f);
+            // Curves describe the way in from the previous frame, which just changed.
+            t.frames.forEach(fr => (fr.via = {}));
+          }),
+        setVia: (id, frame, token, pt) =>
+          edit(id, t => {
+            const f = t.frames[frame];
+            if (!f || frame === 0) return;
+            if (pt) f.via[token] = pt;
+            else delete f.via[token];
           }),
         addDrawing: (id, frame, d) =>
           edit(id, t => {

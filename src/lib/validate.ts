@@ -34,7 +34,10 @@ function normalizeFrame(raw: unknown, base: Record<string, Pt>): Frame {
         return [{ id: str(d.id, '', 60) || uid(), kind: d.kind as DrawKind, a: pt(d.a, { x: 0.5, y: 0.5 }), b: pt(d.b, { x: 0.5, y: 0.5 }) }];
       }).slice(0, 40)
     : [];
-  return { id: str(r.id, '', 60) || uid(), note: str(r.note, '', 60), drawings, positions, ball: pt(r.ball, { x: 0.5, y: 0.5 }) };
+  const rv = isObj(r.via) ? r.via : {};
+  const via: Record<string, Pt> = {};
+  for (const id of [...Object.keys(base), 'ball']) if (isObj(rv[id])) via[id] = pt(rv[id], { x: 0.5, y: 0.5 });
+  return { id: str(r.id, '', 60) || uid(), note: str(r.note, '', 60), drawings, via, positions, ball: pt(r.ball, { x: 0.5, y: 0.5 }) };
 }
 
 /** Rebuilds a tactic from untrusted data (share links, backups, old storage). */

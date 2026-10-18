@@ -22,6 +22,11 @@ export interface Frame {
   id: string;
   note: string;
   drawings: Drawing[];
+  /**
+   * Curved movement: token id (or `ball`) -> the point the path from the previous
+   * frame passes through halfway. Missing = straight line.
+   */
+  via: Record<string, Pt>;
   /** token id -> normalized (0..1) pitch position */
   positions: Record<string, Pt>;
   ball: Pt;
@@ -71,9 +76,19 @@ export interface SceneDrawing extends Drawing {
   alpha: number;
 }
 
+export interface SceneTrail {
+  /** token id or `ball` */
+  id: string;
+  from: Pt;
+  to: Pt;
+  /** halfway point of a curved path; undefined = straight */
+  via?: Pt;
+  color: string;
+}
+
 export interface Scene {
   tokens: SceneToken[];
   ball: Pt | null;
-  trails: { id: string; from: Pt; to: Pt; color: string }[];
+  trails: SceneTrail[];
   drawings: SceneDrawing[];
 }

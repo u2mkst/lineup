@@ -1,3 +1,4 @@
+import { controlPoint } from './curve';
 import { benchOf, buildScene, inkFor, shade } from './scene';
 import type { Player, Pt, Scene, SceneDrawing, SceneToken, Tactic } from '../types';
 
@@ -99,23 +100,28 @@ function drawBall(ctx: CanvasRenderingContext2D, c: { x: number; y: number }, ra
 
 function arrow(
   ctx: CanvasRenderingContext2D, a: { x: number; y: number }, b: { x: number; y: number },
-  color: string, w: number, pad: number, dashed: boolean,
+  color: string, w: number, pad: number, dashed: boolean, c?: { x: number; y: number },
 ) {
-  const ang = Math.atan2(b.y - a.y, b.x - a.x);
   const len = Math.hypot(b.x - a.x, b.y - a.y);
   if (len < pad * 2.2 + w) return;
+  // For a curve the path leaves towards the control point and arrives from it.
+  const angS = Math.atan2((c ?? b).y - a.y, (c ?? b).x - a.x);
+  const angE = Math.atan2(b.y - (c ?? a).y, b.x - (c ?? a).x);
   const h = w * 4;
-  const sx = a.x + Math.cos(ang) * pad; const sy = a.y + Math.sin(ang) * pad;
-  const ex = b.x - Math.cos(ang) * pad; const ey = b.y - Math.sin(ang) * pad;
+  const sx = a.x + Math.cos(angS) * pad; const sy = a.y + Math.sin(angS) * pad;
+  const ex = b.x - Math.cos(angE) * pad; const ey = b.y - Math.sin(angE) * pad;
+  const bx = ex - Math.cos(angE) * h * 0.6; const by = ey - Math.sin(angE) * h * 0.6;
   ctx.save();
   ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round';
   if (dashed) ctx.setLineDash([w * 2.2, w * 1.8]);
-  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex - Math.cos(ang) * h * 0.6, ey - Math.sin(ang) * h * 0.6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(sx, sy);
+  if (c) ctx.quadraticCurveTo(c.x, c.y, bx, by); else ctx.lineTo(bx, by);
+  ctx.stroke();
   ctx.setLineDash([]);
   ctx.beginPath();
   ctx.moveTo(ex, ey);
-  ctx.lineTo(ex - Math.cos(ang - 0.45) * h, ey - Math.sin(ang - 0.45) * h);
-  ctx.lineTo(ex - Math.cos(ang + 0.45) * h, ey - Math.sin(ang + 0.45) * h);
+  ctx.lineTo(ex - Math.cos(angE - 0.45) * h, ey - Math.sin(angE - 0.45) * h);
+  ctx.lineTo(ex - Math.cos(angE + 0.45) * h, ey - Math.sin(angE + 0.45) * h);
   ctx.closePath(); ctx.fill();
   ctx.restore();
 }
@@ -182,7 +188,8 @@ export function drawScene(ctx: CanvasRenderingContext2D, scene: Scene, r: Rect) 
   const rad = tokenRadius(r);
   for (const t of scene.trails) {
     const a = px(r, t.from); const b = px(r, t.to);
-    arrow(ctx, a, b, 'rgba(255,255,255,.75)', Math.max(2, rad * 0.1), rad * 0.9, true);
+    const c = t.via ? controlPoint(a, b, px(r, t.via)) : undefined;
+    arrow(ctx, a, b, 'rgba(255,255,255,.75)', Math.max(2, rad * 0.1), t.id === 'ball' ? rad * 0.6 : rad * 0.9, true, c);
   }
   scene.drawings.forEach(d => drawDrawing(ctx, d, r));
   // Draw back-to-front so lower players overlap upper ones' name tags naturally.
