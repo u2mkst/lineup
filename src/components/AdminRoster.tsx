@@ -121,6 +121,14 @@ export function AdminRoster({ onClose }: { onClose: () => void }) {
             )}
             {open === p.id && !swapMode && (
               <div className="player-extra">
+                <label className="field"><span>출생연도 (평균 연령에 쓰여요)</span>
+                  <input className="text-in" inputMode="numeric" maxLength={4} placeholder="예) 1994" defaultValue={p.birthYear ?? ''} key={`b-${p.id}-${p.birthYear}`} aria-label={`${p.name} 출생연도`}
+                    onBlur={e => {
+                      const v = e.target.value.trim();
+                      const n = v ? Number(v) : null;
+                      if (n !== null && !(n >= 1940 && n <= 2020)) { toast('출생연도는 1940~2020 사이로 입력해 주세요', 'error'); void reloadRoster(); return; }
+                      if ((n ?? undefined) !== p.birthYear) void run(() => updatePlayerRemote(p.id, { birthYear: n }));
+                    }} /></label>
                 <div>
                   <span className="muted small">겸임 포지션</span>
                   <div className="chips">

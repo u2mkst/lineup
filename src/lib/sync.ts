@@ -40,10 +40,13 @@ export function startSync() {
   };
   const ok = () => { failing = false; useSync.setState({ status: 'saved' }); };
 
+  /** only admins keep tactics on the server (the database enforces it too) */
+  const canSync = () => !!useAuth.getState().user && useAuth.getState().isAdmin;
+
   const push = async (id: string) => {
     timers.delete(id);
     const t = useStore.getState().tactics.find(x => x.id === id);
-    if (!t || !useAuth.getState().user || !isUuid(t.id) || known.get(id) === t.updatedAt) return;
+    if (!t || !canSync() || !isUuid(t.id) || known.get(id) === t.updatedAt) return;
     useSync.setState({ status: 'saving' });
     try {
       await upsertTactic(t);
@@ -60,7 +63,7 @@ export function startSync() {
 
   const reconcile = async () => {
     const user = useAuth.getState().user;
-    if (!user) return;
+    if (!user || !canSync()) return;
     try {
       const remote = await fetchMyTactics(user.id);
       remote.forEach(t => known.set(t.id, t.updatedAt));
@@ -82,7 +85,7 @@ export function startSync() {
   };
 
   useStore.subscribe((s, prev) => {
-    if (s.tactics === prev.tactics || !useAuth.getState().user) return;
+    if (s.tactics === prev.tactics || !canSync()) return;
     const before = new Map(prev.tactics.map(t => [t.id, t]));
     const now = new Set(s.tactics.map(t => t.id));
     for (const t of s.tactics) if (before.get(t.id) !== t && known.get(t.id) !== t.updatedAt) schedule(t.id);
@@ -94,25 +97,32 @@ export function startSync() {
     }
   });
 
-  useAuth.subscribe((s, prev) => {
-    if (s.user && !prev.user) void reconcile();
-    if (!s.user && prev.user) { known.clear(); useSync.setState({ status: 'idle' }); }
-  });
-
-  // The roster is shared by everyone; refresh it on start and whenever the tab comes back.
+  // The roster is shared by the whole team; (re)load it whenever the member is known.
   let lastRoster = 0;
-  const refreshRoster = async () => {
-    if (Date.now() - lastRoster < ROSTER_REFRESH_MS) return;
+  const refreshRoster = async (force = false) => {
+    if (!useAuth.getState().member) return;
+    if (!force && Date.now() - lastRoster < ROSTER_REFRESH_MS) return;
     lastRoster = Date.now();
     try {
       useStore.setState({ roster: await fetchRoster() });
     } catch { /* keep the cached roster */ }
   };
+
+  useAuth.subscribe((s, prev) => {
+    const becameMember = !!s.member && !prev.member;
+    const becameAdmin = s.isAdmin && !prev.isAdmin;
+    if (becameMember) void refreshRoster(true);
+    if (becameAdmin || (becameMember && s.isAdmin)) void reconcile();
+    if (!s.user && prev.user) {
+      known.clear();
+      useSync.setState({ status: 'idle' });
+    }
+  });
+
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && void refreshRoster());
   window.addEventListener('online', () => { void refreshRoster(); void reconcile(); });
 
-  void useAuth.getState().init().then(() => reconcile());
-  void refreshRoster();
+  void useAuth.getState().init().then(() => { void refreshRoster(true); void reconcile(); });
 }
 
 /** Force a roster reload, e.g. after an admin changed it. */

@@ -1,18 +1,29 @@
 import type { Session } from '@supabase/supabase-js';
 import { create } from 'zustand';
+import { claimAdmin, fetchMyMember, fetchTeamName, joinTeam } from './cloud';
 import { supabase } from './supabase';
+import type { Member } from '../types';
 
 interface AuthState {
-  /** false until the stored session has been read */
+  /** false until the stored session (and membership) has been read */
   ready: boolean;
   user: { id: string; email: string } | null;
-  /** every account is an admin today, but the server is the source of truth */
+  /** null while signed in but not yet part of the team */
+  member: Member | null;
+  /** convenience: member.role === 'admin' (the server enforces it) */
   isAdmin: boolean;
+  teamName: string;
   init: () => Promise<void>;
+  /** re-read membership and team name, e.g. after linking a player */
+  refresh: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   /** resolves `needsConfirm: true` when the project requires e-mail verification first */
   signUp: (email: string, password: string) => Promise<{ needsConfirm: boolean }>;
   signOut: () => Promise<void>;
+  /** enter the team with its join code */
+  join: (code: string) => Promise<void>;
+  /** become the first admin with the one-time setup code */
+  claim: (code: string) => Promise<void>;
 }
 
 function message(e: { message?: string } | null): Error {
@@ -26,24 +37,35 @@ function message(e: { message?: string } | null): Error {
   return new Error(m || '요청에 실패했어요');
 }
 
-export const useAuth = create<AuthState>((set) => {
+export const useAuth = create<AuthState>((set, get) => {
+  const empty = { user: null, member: null, isAdmin: false };
+
   const apply = async (session: Session | null) => {
-    if (!session || !supabase) { set({ ready: true, user: null, isAdmin: false }); return; }
+    if (!session || !supabase) { set({ ...empty, ready: true }); return; }
     const user = { id: session.user.id, email: session.user.email ?? '' };
-    set({ ready: true, user });
-    const { data } = await supabase.from('admins').select('user_id').eq('user_id', user.id).maybeSingle();
-    set({ isAdmin: !!data });
+    try {
+      const member = await fetchMyMember(user.id);
+      const teamName = member ? await fetchTeamName().catch(() => get().teamName) : get().teamName;
+      set({ ready: true, user, member, isAdmin: member?.role === 'admin', teamName });
+    } catch {
+      // keep what we knew; the next auth event or refresh() tries again
+      set({ ready: true, user });
+    }
   };
 
   return {
     ready: !supabase,
-    user: null,
-    isAdmin: false,
+    ...empty,
+    teamName: '우리 팀',
     init: async () => {
       if (!supabase) return;
       // supabase-js deadlocks if its own API is called synchronously inside this callback.
       supabase.auth.onAuthStateChange((_event, session) => { setTimeout(() => void apply(session), 0); });
       const { data } = await supabase.auth.getSession();
+      await apply(data.session);
+    },
+    refresh: async () => {
+      const { data } = await supabase!.auth.getSession();
       await apply(data.session);
     },
     signIn: async (email, password) => {
@@ -59,7 +81,9 @@ export const useAuth = create<AuthState>((set) => {
     },
     signOut: async () => {
       await supabase?.auth.signOut();
-      set({ user: null, isAdmin: false });
+      set({ ...empty });
     },
+    join: async code => { await joinTeam(code); await get().refresh(); },
+    claim: async code => { await claimAdmin(code); await get().refresh(); },
   };
 });

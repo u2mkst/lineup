@@ -23,15 +23,15 @@ export function PublicView({ id, onOpen, onHome }: { id: string; onOpen: (id: st
     return (
       <div className="empty">
         <h2>{state === 'missing' ? '볼 수 없는 전술이에요' : '불러오지 못했어요'}</h2>
-        <p className="muted">{state === 'missing' ? '비공개로 바뀌었거나 삭제된 전술이에요.' : '인터넷 연결을 확인하고 다시 시도해 주세요.'}</p>
-        <button className="btn primary" onClick={onHome}>처음으로</button>
+        <p className="muted">{state === 'missing' ? '공유가 해제되었거나 삭제된 전술이에요.' : '인터넷 연결을 확인하고 다시 시도해 주세요.'}</p>
+        <button className="btn primary" onClick={onHome}>목록으로</button>
       </div>
     );
   }
   return (
     <div className="home shared">
       <header className="home-hero">
-        <p className="muted small">팀 공개 전술</p>
+        <p className="muted small">팀 공유 전술</p>
         <h1>{state.name}</h1>
         <p className="muted">{state.us.formation}{state.opp ? ` vs ${state.opp.formation}` : ''} · 장면 {state.frames.length}개</p>
       </header>

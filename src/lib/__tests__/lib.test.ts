@@ -7,6 +7,7 @@ import { layoutFormation, rolesFor } from '../layout';
 import { buildPayload, decodePayload, encodePayload } from '../share';
 import { useStore } from '../store';
 import { normalizePlayer, normalizeTactic } from '../validate';
+import type { Match } from '../../types';
 
 const fresh = () => {
   useStore.setState({ tactics: [], history: {} });
@@ -353,12 +354,17 @@ describe('matches and kakao', () => {
     expect(normalizeTactic({ us: {}, frames: [{}], matchId: 'abc' })!.matchId).toBe('abc');
     expect(normalizeTactic({ us: {}, frames: [{}], matchId: 5 })!.matchId).toBeUndefined();
   });
-  it('knows when a match can still be voted on (until a day after kick-off)', async () => {
-    const { isOpen } = await import('../matches');
+  it('closes voting at the deadline, or at kick-off when there is none', async () => {
+    const { votingOpen, deadlineLabel } = await import('../matches');
     const h = 3600 * 1000;
-    expect(isOpen(new Date(Date.now() + 5 * h).toISOString())).toBe(true);
-    expect(isOpen(new Date(Date.now() - 20 * h).toISOString())).toBe(true);
-    expect(isOpen(new Date(Date.now() - 30 * h).toISOString())).toBe(false);
+    const base: Omit<Match, 'kickoff' | 'voteDeadline'> = { id: 'm', kind: 'match', title: 't', opponent: '', venue: '', notes: '', tacticId: null, status: 'scheduled', ourScore: null, oppScore: null, quarters: [], potmPlayerId: null };
+    const at = (hours: number) => new Date(Date.now() + hours * h).toISOString();
+    expect(votingOpen({ ...base, kickoff: at(5), voteDeadline: null })).toBe(true);
+    expect(votingOpen({ ...base, kickoff: at(5), voteDeadline: at(-1) })).toBe(false);   // deadline passed although the match is later
+    expect(votingOpen({ ...base, kickoff: at(-2), voteDeadline: null })).toBe(false);
+    expect(votingOpen({ ...base, kickoff: at(5), voteDeadline: null, status: 'finished' })).toBe(false);
+    expect(deadlineLabel({ ...base, kickoff: at(80), voteDeadline: null })).toBe('마감 D-3');
+    expect(deadlineLabel({ ...base, kickoff: at(-1), voteDeadline: null })).toBe('마감');
   });
   it('builds Kakao card payloads with the link on both the card and the button', async () => {
     const { textCard, feedCard } = await import('../kakao');
@@ -373,5 +379,16 @@ describe('matches and kakao', () => {
     const p = normalizePlayer({ id: 'x', number: '9', name: '공격수', pos: 'FW', alt_pos: ['MF', 'FW', 'ZZ'], injured: true, injury_note: '햄스트링' })!;
     expect(p).toMatchObject({ altPos: ['MF'], out: true, note: '햄스트링' });   // own position and junk are dropped
     expect(normalizePlayer({ id: 'y', number: '1', name: 'a', pos: 'GK' })).not.toHaveProperty('out');
+  });
+});
+
+describe('team-mode errors', () => {
+  it('explains join codes, last admin and linked players in plain Korean', async () => {
+    const { explain } = await import('../cloud');
+    expect(explain({ code: '28P01', message: 'wrong code' }).message).toContain('코드가 맞지 않아요');
+    expect(explain({ code: '23514', message: 'last admin' }).message).toContain('마지막 관리자');
+    expect(explain({ code: '23505', message: 'player taken' }).message).toContain('이미 다른 계정');
+    expect(explain({ code: '23505', message: 'duplicate key players_number_key' }).message).toContain('등번호');
+    expect(explain({ code: '28000', message: 'sign in first' }).message).toContain('로그인');
   });
 });

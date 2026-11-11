@@ -88,7 +88,7 @@ create policy "comment on public tactics" on public.tactic_comments
   for insert to anon, authenticated
   with check (exists (select 1 from public.tactics t where t.id = tactic_id and t.is_public));
 -- 로그인 안 한 사람은 "확인했어요"만 취소 가능, 관리자는 모든 댓글 삭제 가능 (역할별로 나눠 정책이 겹치지 않게 함)
-create policy "take back a confirmation" on public.tactic_comments
+create policy "anyone can take back a confirmation" on public.tactic_comments
   for delete to anon using (kind = 'ack');
 create policy "admins delete comments" on public.tactic_comments
   for delete to authenticated using (kind = 'ack' or (select public.is_admin()));

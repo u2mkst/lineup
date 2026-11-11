@@ -120,7 +120,7 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
   };
 
   const togglePublic = () => {
-    if (!tactic.isPublic && !confirm('팀 공개로 바꾸면 로그인하지 않은 사람도 이 전술을 볼 수 있어요. 공개할까요?')) return;
+    if (!tactic.isPublic && !confirm('팀 공유로 바꾸면 모든 팀원이 이 전술을 볼 수 있어요. 공유할까요?')) return;
     store.edit(id, t => { t.isPublic = !t.isPublic; });
   };
 
@@ -162,12 +162,12 @@ export function Editor({ id, onBack }: { id: string; onBack: () => void }) {
         <button className="btn sm primary" onClick={() => setExportOpen(true)}>내보내기</button>
       </header>
 
-      {cloudEnabled && user && (
+      {cloudEnabled && user && isAdmin && (
         <div className="cloud-bar">
           <button className={`chip${tactic.isPublic ? ' on' : ''}`} onClick={togglePublic} aria-pressed={!!tactic.isPublic}>
-            {tactic.isPublic ? '팀 공개 중' : '비공개'}
+            {tactic.isPublic ? '팀 공유 중' : '나만 보기'}
           </button>
-          {isAdmin && (
+          {(
             <button className={`chip${tactic.matchId ? ' on' : ''}`} onClick={() => setMatchOpen(true)}>
               {tactic.matchId ? `경기: ${matchTitle || '연결됨'}` : '경기 연결'}
             </button>

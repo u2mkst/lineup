@@ -12,6 +12,7 @@ export interface Player {
   out?: boolean;
   /** short reason shown next to the flag, e.g. "햄스트링" */
   note?: string;
+  birthYear?: number;
 }
 
 export type DrawKind = 'run' | 'pass' | 'zone';
@@ -113,16 +114,70 @@ export interface Scene {
 
 export type Attend = 'yes' | 'no' | 'maybe';
 
+export type EventKind = 'match' | 'social' | 'practice' | 'other';
+export type EventStatus = 'scheduled' | 'finished' | 'cancelled';
+
+export interface QuarterScore {
+  us: number;
+  opp: number;
+}
+
+/** A calendar entry: a match, a social event, practice... */
 export interface Match {
   id: string;
+  kind: EventKind;
   title: string;
   opponent: string;
   /** ISO timestamp */
   kickoff: string;
   venue: string;
   notes: string;
-  /** public tactic holding the line-up for this match */
+  /** shared tactic holding the line-up for this match */
   tacticId: string | null;
+  status: EventStatus;
+  ourScore: number | null;
+  oppScore: number | null;
+  quarters: QuarterScore[];
+  potmPlayerId: string | null;
+  /** ISO timestamp; voting closes then (defaults to kick-off) */
+  voteDeadline: string | null;
+}
+
+export interface MatchStat {
+  matchId: string;
+  playerId: string;
+  played: boolean;
+  goals: number;
+  assists: number;
+}
+
+export type Role = 'admin' | 'player';
+
+export interface Member {
+  userId: string;
+  role: Role;
+  playerId: string | null;
+  nickname: string;
+}
+
+export interface Post {
+  id: string;
+  authorId: string;
+  authorName: string;
+  title: string;
+  body: string;
+  pinned: boolean;
+  createdAt: string;
+  commentCount: number;
+}
+
+export interface PostComment {
+  id: string;
+  postId: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
 }
 
 export interface TacticComment {

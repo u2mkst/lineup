@@ -24,9 +24,11 @@ export function normalizePlayer(raw: unknown): Player | null {
   const altPos = Array.isArray(altRaw) ? [...new Set(altRaw.filter((p): p is Pos => POS.includes(p as Pos) && p !== pos))] : [];
   const out = (raw.out ?? raw.injured) === true;
   const note = str(raw.note ?? raw.injury_note, '', 20);
+  const by = num(raw.birthYear ?? raw.birth_year, 0);
   return {
     id: str(raw.id, '', 60) || uid(), number: str(raw.number, '', 3), name: str(raw.name, '', 8), pos,
     ...(altPos.length ? { altPos } : {}), ...(out ? { out: true } : {}), ...(note ? { note } : {}),
+    ...(by >= 1940 && by <= 2020 ? { birthYear: by } : {}),
   };
 }
 

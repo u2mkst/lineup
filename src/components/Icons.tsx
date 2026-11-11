@@ -40,3 +40,15 @@ export const IconLogo = (p: P) => (
 );
 export const IconSelect = (p: P) => base(<><rect x="4" y="4" width="14" height="14" rx="2" strokeDasharray="3 3" /><path d="M13 13l7 3-3 1-1 3z" fill="currentColor" /></>, p);
 export const IconSwap = (p: P) => base(<><path d="M7 4L3 8l4 4" /><path d="M3 8h13" /><path d="M17 20l4-4-4-4" /><path d="M21 16H8" /></>, p);
+export const IconHome = (p: P) => base(<><path d="M3 11l9-8 9 8" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></>, p);
+export const IconCalendar = (p: P) => base(<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>, p);
+export const IconChart = (p: P) => base(<><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>, p);
+export const IconBoardTactic = (p: P) => base(<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 12h18" /><circle cx="12" cy="12" r="3" /><path d="M9 3v3h6V3M9 21v-3h6v3" /></>, p);
+export const IconMenu = (p: P) => base(<><path d="M4 7h16M4 12h16M4 17h16" /></>, p);
+export const IconPin = (p: P) => base(<><path d="M12 17v5" /><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z" /></>, p);
+export const IconMessage = (p: P) => base(<path d="M21 12a8 8 0 01-11.7 7.1L4 20l1-4.6A8 8 0 1121 12z" />, p);
+export const IconCheck = (p: P) => base(<path d="M5 12l5 5 9-10" />, p);
+export const IconChevronRight = (p: P) => base(<path d="M9 6l6 6-6 6" />, p);
+export const IconMapPin = (p: P) => base(<><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" /></>, p);
+export const IconClock = (p: P) => base(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>, p);
+export const IconKey = (p: P) => base(<><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M16 7l3 3" /></>, p);

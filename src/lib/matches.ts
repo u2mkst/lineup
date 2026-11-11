@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Attend } from '../types';
+import type { Attend, EventKind, Match } from '../types';
 import { fetchAttendance } from './cloud';
 import { cloudEnabled } from './supabase';
 
@@ -17,12 +17,39 @@ export function useAttendance(matchId: string | undefined) {
 }
 
 export const ATTEND_LABEL: Record<Attend, string> = { yes: '참석', maybe: '미정', no: '불참' };
+export const KIND_LABEL: Record<EventKind, string> = { match: '매치', social: '회식', practice: '연습', other: '기타' };
+export const KIND_COLOR: Record<EventKind, string> = { match: '#3350e7', social: '#ff7b2e', practice: '#009632', other: '#7d5ef7' };
 
-/** Match time in the viewer's locale, e.g. "10월 25일 (토) 오후 2:00". */
+const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** "10월 25일 (토) 오후 2:00" */
 export function formatKickoff(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  return new Date(iso).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: 'numeric', minute: '2-digit' });
 }
+/** "2026.05.15(금) 20:00" */
+export function formatStamp(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}(${WEEKDAY[d.getDay()]}) ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+export const formatTime = (iso: string) => { const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+export const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-/** True while a match can still be voted on (until a day after kick-off, as the database enforces). */
-export const isOpen = (iso: string) => new Date(iso).getTime() > Date.now() - 24 * 3600 * 1000;
+/** When voting closes: the explicit deadline, otherwise kick-off. */
+export const deadlineOf = (m: Match) => m.voteDeadline ?? m.kickoff;
+
+/** True while players can still vote (the database enforces the same rule). */
+export const votingOpen = (m: Match, now = Date.now()) => m.status === 'scheduled' && new Date(deadlineOf(m)).getTime() > now;
+
+/** Upcoming = not finished/cancelled and not long past. */
+export const isUpcoming = (m: Match, now = Date.now()) => m.status === 'scheduled' && new Date(m.kickoff).getTime() > now - 3 * 3600 * 1000;
+
+/** "D-3", "오늘", "마감" for a vote deadline. */
+export function deadlineLabel(m: Match, now = Date.now()): string {
+  const ms = new Date(deadlineOf(m)).getTime() - now;
+  if (ms <= 0) return '마감';
+  const days = Math.floor(ms / 86400e3);
+  if (days >= 1) return `마감 D-${days}`;
+  const hours = Math.floor(ms / 3600e3);
+  return hours >= 1 ? `${hours}시간 뒤 마감` : '곧 마감';
+}
