@@ -562,3 +562,46 @@ button.bench-chip { border: 0; font: inherit; color: inherit; }
 button.bench-chip:disabled { opacity: 1; cursor: default; }
 button.bench-chip.out { opacity: .7; }
 .toaster { bottom: calc(84px + env(safe-area-inset-bottom)); }
+
+/* ───────── wizard (one question per screen) ───────── */
+.wizard { min-height: 100vh; min-height: 100dvh; width: min(100%, 460px); margin: 0 auto; display: flex; flex-direction: column; padding: 8px 20px 20px; background: var(--bg); }
+.wiz-top { display: flex; align-items: center; gap: 12px; min-height: 52px; }
+.wiz-top .icon-btn, .wiz-brand { flex: none; width: 36px; height: 36px; display: grid; place-items: center; }
+.wiz-progress { flex: 1; height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.wiz-progress span { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width .3s ease; }
+.wiz-body { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 22px 0 18px; }
+.wiz-body h1 { font-size: 26px; line-height: 1.3; letter-spacing: -.03em; word-break: keep-all; }
+.wiz-sub { color: var(--muted); font-size: 15px; line-height: 1.55; word-break: keep-all; }
+.wiz-answer { display: grid; gap: 14px; margin-top: 18px; align-content: start; }
+.wiz-foot { position: sticky; bottom: 0; display: grid; gap: 8px; padding: 12px 0 calc(6px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 78%, transparent); }
+.wiz-input { width: 100%; min-height: 56px; padding: 0 4px; border: 0; border-bottom: 2px solid var(--line-strong); border-radius: 0; background: transparent; font-size: 22px; font-weight: 700; }
+.wiz-input:focus { outline: none; border-bottom-color: var(--accent); }
+.wiz-input.code-in { text-align: left; letter-spacing: .04em; }
+.wiz-input[type="datetime-local"] { font-size: 18px; }
+.wiz-pass { display: flex; align-items: center; gap: 10px; }
+.wiz-checks { display: flex; gap: 8px; flex-wrap: wrap; padding: 0; margin: 0; list-style: none; }
+.wiz-checks li { padding: 5px 11px; border-radius: 99px; background: var(--surface-2); color: var(--muted); font-size: 13px; font-weight: 700; }
+.wiz-checks li::before { content: "○ "; }
+.wiz-checks li.ok { background: var(--accent-soft); color: var(--accent); }
+.wiz-checks li.ok::before { content: "✓ "; }
+.wiz-switch { justify-self: center; padding: 8px; }
+.wiz-hero { display: grid; place-items: center; padding: 28px 0 8px; }
+.wiz-hero.big { font-size: 72px; }
+.wiz-points { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.wiz-points li { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-weight: 700; }
+.wiz-points li::before { content: "✓"; color: var(--accent); margin-right: 10px; }
+.wiz-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.wiz-choices.two { grid-template-columns: 1fr 1fr; }
+.wiz-choice { display: grid; gap: 2px; justify-items: start; text-align: left; min-height: 72px; padding: 14px 16px; background: var(--surface); border: 2px solid transparent; border-radius: var(--r); }
+.wiz-choice strong { font-size: 17px; }
+.wiz-choice span { font-size: 12px; color: var(--muted); font-weight: 700; }
+.wiz-choice.on { border-color: var(--accent); background: var(--accent-soft); }
+.wiz-count { font-size: 20px; font-weight: 800; }
+.wiz-steps { margin: 0; padding-left: 22px; display: grid; gap: 12px; font-size: 17px; }
+.wiz-share { display: grid; gap: 10px; justify-items: start; }
+.wiz-link { word-break: break-all; }
+.wizard .picker-list { display: grid; gap: 8px; }
+/* the screen change itself confirms each step; only errors still pop up (at the top, clear of the pinned button) */
+body:has(.wizard) .toaster { bottom: auto; top: calc(64px + env(safe-area-inset-top)); }
+body:has(.wizard) .toast:not(.error) { display: none; }
+.wiz-pass .link { flex: none; white-space: nowrap; }

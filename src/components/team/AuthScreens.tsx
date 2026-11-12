@@ -1,119 +1,180 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../lib/auth';
 import { fetchMembers, linkMyPlayer } from '../../lib/cloud';
+import { checkPassword, clearPending, isEmail, readPending, type Pending } from '../../lib/pending';
+import { go, paths } from '../../lib/route';
 import { useStore } from '../../lib/store';
 import { reloadRoster } from '../../lib/sync';
 import { toast } from '../../lib/toast';
 import { useAsync } from '../../lib/useAsync';
 import { IconLogo } from '../Icons';
-import { Loading, Segmented } from '../ui';
+import { Loading } from '../ui';
+import { NextButton, Wizard } from './Wizard';
 
 export function Splash() {
   return <div className="auth-screen"><IconLogo width={56} height={56} /><p className="muted small" role="status">불러오는 중…</p></div>;
 }
 
-function AuthFrame({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
-  return (
-    <div className="auth-screen">
-      <div className="auth-card">
-        <div className="auth-brand"><IconLogo width={44} height={44} /><span>축구방</span></div>
-        <h1>{title}</h1>
-        {sub && <p className="muted">{sub}</p>}
-        {children}
-      </div>
-    </div>
-  );
-}
+const invitedLine = (p: Pending | null) =>
+  p?.kind === 'setup' ? '구단을 만드는 링크로 들어오셨어요. 가입하면 바로 관리자로 시작해요.' : p ? '초대 링크로 들어오셨어요. 가입하면 바로 합류돼요.' : '팀원만 쓸 수 있는 우리 팀 전용 공간이에요.';
 
-/** Email + password. Signing up only creates the account; the team is joined with a code afterwards. */
+type Phase = 'welcome' | 'email' | 'password' | 'sent';
+
+/** Sign in or sign up, one field per screen. */
 export function LoginScreen() {
   const signIn = useAuth(s => s.signIn);
   const signUp = useAuth(s => s.signUp);
-  const [mode, setMode] = useState<'in' | 'up'>('in');
+  const resend = useAuth(s => s.resend);
+  const pending = readPending();
+  const [mode, setMode] = useState<'in' | 'up'>('up');
+  const [phase, setPhase] = useState<Phase>('welcome');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [sent, setSent] = useState(false);
+  const [unconfirmed, setUnconfirmed] = useState(false);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    if (mode === 'up' && password.length < 8) { setError('비밀번호는 8자 이상으로 입력해 주세요.'); return; }
+  const begin = (m: 'in' | 'up') => { setMode(m); setError(''); setPhase('email'); };
+  const check = checkPassword(password);
+
+  const submitPassword = async () => {
+    setError(''); setUnconfirmed(false);
+    if (mode === 'up' && !check.ok) { setError('비밀번호 조건을 모두 채워 주세요.'); return; }
     setBusy(true);
     try {
       if (mode === 'in') await signIn(email, password);
-      else if ((await signUp(email, password)).needsConfirm) setSent(true);
+      else if ((await signUp(email, password)).needsConfirm) setPhase('sent');
     } catch (err) {
-      setError((err as Error).message);
+      const msg = (err as Error).message;
+      setError(msg);
+      if (mode === 'in' && /인증 링크/.test(msg)) setUnconfirmed(true);
     } finally {
       setBusy(false);
     }
   };
 
-  if (sent) {
+  const sendAgain = async () => {
+    try { await resend(email); toast('인증 메일을 다시 보냈어요'); } catch (err) { toast((err as Error).message, 'error'); }
+  };
+
+  if (phase === 'welcome') {
     return (
-      <AuthFrame title="메일을 확인해 주세요" sub={`${email}로 인증 메일을 보냈어요. 메일의 링크를 누른 뒤 로그인해 주세요.`}>
-        <button className="btn primary lg block" onClick={() => { setSent(false); setMode('in'); setPassword(''); }}>로그인하러 가기</button>
-      </AuthFrame>
+      <Wizard title="우리 팀 축구방" sub={invitedLine(pending)} onSubmit={() => begin('up')}
+        footer={<>
+          <NextButton>시작하기</NextButton>
+          <button type="button" className="btn ghost lg block" onClick={() => begin('in')}>이미 계정이 있어요</button>
+        </>}>
+        <div className="wiz-hero" aria-hidden><IconLogo width={84} height={84} /></div>
+        <ul className="wiz-points">
+          <li>일정 확인하고 참석 투표</li>
+          <li>경기 기록과 시즌 통계</li>
+          <li>라인업·전술 한눈에</li>
+        </ul>
+      </Wizard>
+    );
+  }
+
+  if (phase === 'sent') {
+    return (
+      <Wizard title="메일을 확인해 주세요" sub={`${email}로 인증 메일을 보냈어요. 메일의 버튼을 누른 뒤 돌아와 로그인해 주세요.${pending ? ' 초대 정보는 이 기기에 기억해 둘게요.' : ''}`}
+        onSubmit={() => { setMode('in'); setPassword(''); setError(''); setPhase('password'); }}
+        footer={<>
+          <NextButton>인증했어요, 로그인할게요</NextButton>
+          <button type="button" className="btn ghost lg block" onClick={() => void sendAgain()}>메일 다시 보내기</button>
+        </>} />
+    );
+  }
+
+  if (phase === 'email') {
+    return (
+      <Wizard step={1} total={2} title={mode === 'up' ? '이메일 주소를 알려주세요' : '가입한 이메일이 뭐예요?'} sub={mode === 'up' ? '로그인할 때 쓰는 주소예요.' : undefined}
+        onBack={() => setPhase('welcome')} onSubmit={() => { if (isEmail(email)) { setError(''); setPhase('password'); } }}
+        footer={<NextButton disabled={!isEmail(email)}>다음</NextButton>}>
+        <input className="wiz-input" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} autoFocus
+          placeholder="name@example.com" aria-label="이메일" value={email} onChange={e => setEmail(e.target.value)} />
+      </Wizard>
     );
   }
 
   return (
-    <AuthFrame title={mode === 'in' ? '우리 팀에 로그인' : '계정 만들기'} sub="우리 팀 전용 공간이에요. 팀원만 이용할 수 있어요.">
-      <Segmented<'in' | 'up'> label="로그인 방식" value={mode} onChange={m => { setMode(m); setError(''); }} options={[{ id: 'in', label: '로그인' }, { id: 'up', label: '가입' }]} />
-      <form className="form-col" onSubmit={submit}>
-        <label className="field"><span>이메일</span>
-          <input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} /></label>
-        <label className="field"><span>비밀번호{mode === 'up' ? ' (8자 이상)' : ''}</span>
-          <input type="password" autoComplete={mode === 'in' ? 'current-password' : 'new-password'} required minLength={mode === 'up' ? 8 : undefined}
-            value={password} onChange={e => setPassword(e.target.value)} /></label>
-        {error && <p className="error" role="alert">{error}</p>}
-        <button className="btn primary lg block" type="submit" disabled={busy}>{busy ? '잠시만요…' : mode === 'in' ? '로그인' : '가입하기'}</button>
-      </form>
-      <p className="hint">{mode === 'up' ? '가입한 뒤에 팀에서 받은 합류코드를 입력하면 팀 정보를 볼 수 있어요.' : '처음이면 "가입"을 눌러 계정을 만들어 주세요.'}</p>
-    </AuthFrame>
+    <Wizard step={2} total={2} title={mode === 'up' ? '비밀번호를 만들어 주세요' : '비밀번호를 입력해 주세요'}
+      sub={email} onBack={() => { setPassword(''); setError(''); setPhase('email'); }} onSubmit={() => void submitPassword()}
+      footer={<NextButton busy={busy} disabled={!password || (mode === 'up' && !check.ok)}>{mode === 'up' ? '가입하기' : '로그인'}</NextButton>}>
+      <div className="wiz-pass">
+        <input className="wiz-input" type={show ? 'text' : 'password'} autoComplete={mode === 'in' ? 'current-password' : 'new-password'} autoFocus
+          aria-label="비밀번호" value={password} onChange={e => setPassword(e.target.value)} />
+        <button type="button" className="link" onClick={() => setShow(v => !v)}>{show ? '숨기기' : '보기'}</button>
+      </div>
+      {mode === 'up' && (
+        <ul className="wiz-checks" aria-label="비밀번호 조건">
+          <li className={check.long ? 'ok' : ''}>8자 이상</li>
+          <li className={check.letter ? 'ok' : ''}>글자 포함</li>
+          <li className={check.digit ? 'ok' : ''}>숫자 포함</li>
+        </ul>
+      )}
+      {error && <p className="error" role="alert">{error}</p>}
+      {unconfirmed && <button type="button" className="link" onClick={() => void sendAgain()}>인증 메일 다시 받기</button>}
+      <button type="button" className="link wiz-switch" onClick={() => { setMode(m => (m === 'up' ? 'in' : 'up')); setError(''); setUnconfirmed(false); }}>
+        {mode === 'up' ? '이미 계정이 있어요' : '처음이에요, 가입할게요'}
+      </button>
+    </Wizard>
   );
 }
 
-/** Signed in but not in the team yet: enter the join code (or the one-time setup code for the first admin). */
+/**
+ * Signed in but not in the team yet. A remembered invite / setup link is used automatically;
+ * otherwise the code is typed (one field).
+ */
 export function JoinScreen() {
   const join = useAuth(s => s.join);
   const claim = useAuth(s => s.claim);
   const signOut = useAuth(s => s.signOut);
   const user = useAuth(s => s.user);
-  const [first, setFirst] = useState(false);
-  const [code, setCode] = useState('');
-  const [busy, setBusy] = useState(false);
+  const pending = useRef(readPending()).current;
+  const [first, setFirst] = useState(pending?.kind === 'setup');
+  const [code, setCode] = useState(pending?.code ?? '');
+  const [busy, setBusy] = useState(!!pending);
   const [error, setError] = useState('');
+  const tried = useRef(false);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const enter = async (kind: 'invite' | 'setup', value: string) => {
     setBusy(true); setError('');
     try {
-      await (first ? claim(code) : join(code));
-      toast(first ? '관리자로 시작해요' : '구단에 합류했어요');
+      await (kind === 'setup' ? claim(value) : join(value));
+      clearPending();
+      toast(kind === 'setup' ? '관리자로 시작해요' : '구단에 합류했어요');
+      if (kind === 'setup') go(paths.setup()); else go(paths.home);
     } catch (err) {
       setError((err as Error).message);
-    } finally {
       setBusy(false);
     }
   };
 
+  useEffect(() => {
+    if (!pending || tried.current) return;
+    tried.current = true;
+    void enter(pending.kind, pending.code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (busy && pending && !error) {
+    return <div className="auth-screen"><IconLogo width={56} height={56} /><p className="muted small" role="status">{pending.kind === 'setup' ? '구단을 만드는 중…' : '구단에 합류하는 중…'}</p></div>;
+  }
+
   return (
-    <AuthFrame title={first ? '관리자 설정 코드' : '구단 합류하기'} sub={first ? '처음 구단을 시작하는 사람만 쓰는 1회용 코드예요.' : '팀 단체방에서 받은 합류코드를 입력해 주세요.'}>
-      <form className="form-col" onSubmit={submit}>
-        <label className="field"><span>{first ? '설정 코드' : '합류코드'}</span>
-          <input className="code-in" value={code} autoCapitalize="characters" autoComplete="off" spellCheck={false} maxLength={16} required autoFocus
-            onChange={e => setCode(e.target.value.toUpperCase())} /></label>
-        {error && <p className="error" role="alert">{error}</p>}
-        <button className="btn primary lg block" type="submit" disabled={busy || !code.trim()}>{busy ? '확인 중…' : first ? '관리자로 시작' : '합류하기'}</button>
-      </form>
-      <div className="auth-links">
-        <button className="link" onClick={() => { setFirst(f => !f); setError(''); setCode(''); }}>{first ? '합류코드로 들어갈게요' : '처음 만드는 관리자예요'}</button>
-        <button className="link" onClick={() => void signOut()}>{user?.email} 로그아웃</button>
-      </div>
-    </AuthFrame>
+    <Wizard title={first ? '설정 코드를 입력해 주세요' : '합류코드를 입력해 주세요'}
+      sub={first ? '구단을 처음 만드는 사람만 쓰는 1회용 코드예요.' : '팀 단체방에서 받은 코드예요. 초대 링크를 열었다면 입력하지 않아도 돼요.'}
+      onSubmit={() => void enter(first ? 'setup' : 'invite', code)}
+      footer={<>
+        <NextButton busy={busy} disabled={!code.trim()}>{first ? '관리자로 시작' : '합류하기'}</NextButton>
+        <button type="button" className="link wiz-switch" onClick={() => { setFirst(f => !f); setError(''); setCode(''); }}>{first ? '합류코드로 들어갈게요' : '구단을 처음 만드는 사람이에요'}</button>
+        <button type="button" className="link wiz-switch" onClick={() => { clearPending(); void signOut(); }}>{user?.email} 로그아웃</button>
+      </>}>
+      <input className="wiz-input code-in" value={code} autoCapitalize="characters" autoComplete="off" spellCheck={false} maxLength={16} autoFocus
+        aria-label={first ? '설정 코드' : '합류코드'} onChange={e => setCode(e.target.value.toUpperCase())} />
+      {error && <p className="error" role="alert">{error}</p>}
+    </Wizard>
   );
 }
 
@@ -134,18 +195,18 @@ export function LinkPlayerScreen({ onSkip }: { onSkip: () => void }) {
   };
 
   return (
-    <AuthFrame title="나는 누구인가요?" sub="내 선수 프로필을 고르면 참석 투표와 기록이 내 이름으로 남아요.">
+    <Wizard title="나는 누구인가요?" sub="이름을 누르면 참석 투표와 기록이 내 이름으로 남아요."
+      footer={<button type="button" className="btn ghost lg block" onClick={onSkip}>선수로 뛰지 않아요 · 나중에 할게요</button>}>
       {members.loading && !members.data ? <Loading /> : (
         <div className="picker-list">
           {free.map(p => (
-            <button key={p.id} className="picker-row" disabled={busy} onClick={() => void pick(p.id)}>
+            <button type="button" key={p.id} className="picker-row" disabled={busy} onClick={() => void pick(p.id)}>
               <span className="pk-num">{p.number}</span><span className="pk-name">{p.name}</span><span className="pk-pos">{p.pos}</span><span />
             </button>
           ))}
           {free.length === 0 && <p className="muted small">연결할 수 있는 선수가 없어요. 관리자에게 선수 등록을 요청해 주세요.</p>}
         </div>
       )}
-      <button className="btn ghost block" onClick={onSkip}>나중에 할게요 (선수로 뛰지 않아요)</button>
-    </AuthFrame>
+    </Wizard>
   );
 }

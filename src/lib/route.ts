@@ -14,7 +14,9 @@ export type Route =
   | { name: 'board' }
   | { name: 'post'; id: string }
   | { name: 'admin' }
-  | { name: 'me' };
+  | { name: 'me' }
+  | { name: 'invite'; code: string }
+  | { name: 'setup'; code: string };
 
 const seg = (s: string) => { try { return decodeURIComponent(s); } catch { return s; } };
 
@@ -34,6 +36,8 @@ export function parseRoute(hash = location.hash): Route {
     case 'board': return id ? { name: 'post', id } : { name: 'board' };
     case 'admin': return { name: 'admin' };
     case 'me': return { name: 'me' };
+    case 'join': return arg ? { name: 'invite', code: id.toUpperCase() } : { name: 'home' };
+    case 'setup': return { name: 'setup', code: id.toUpperCase() };
     default: return { name: 'home' };
   }
 }
@@ -52,6 +56,8 @@ export const paths = {
   post: (id: string) => `#/board/${encodeURIComponent(id)}`,
   admin: '#/admin',
   me: '#/me',
+  invite: (code: string) => `#/join/${encodeURIComponent(code)}`,
+  setup: (code = '') => (code ? `#/setup/${encodeURIComponent(code)}` : '#/setup'),
 };
 
 export const go = (path: string) => { location.hash = path; };

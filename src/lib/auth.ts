@@ -20,6 +20,8 @@ interface AuthState {
   /** resolves `needsConfirm: true` when the project requires e-mail verification first */
   signUp: (email: string, password: string) => Promise<{ needsConfirm: boolean }>;
   signOut: () => Promise<void>;
+  /** send the verification mail again */
+  resend: (email: string) => Promise<void>;
   /** enter the team with its join code */
   join: (code: string) => Promise<void>;
   /** become the first admin with the one-time setup code */
@@ -78,6 +80,10 @@ export const useAuth = create<AuthState>((set, get) => {
       // An existing confirmed address comes back as a user with no identities.
       if (data.user && data.user.identities?.length === 0) throw message({ message: 'User already registered' });
       return { needsConfirm: !data.session };
+    },
+    resend: async email => {
+      const { error } = await supabase!.auth.resend({ type: 'signup', email: email.trim() });
+      if (error) throw message(error);
     },
     signOut: async () => {
       await supabase?.auth.signOut();

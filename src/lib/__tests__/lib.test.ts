@@ -392,3 +392,32 @@ describe('team-mode errors', () => {
     expect(explain({ code: '28000', message: 'sign in first' }).message).toContain('로그인');
   });
 });
+
+describe('invite links and sign-up checks', () => {
+  it('parses join and setup links, upper-casing the code', async () => {
+    const { parseRoute } = await import('../route');
+    expect(parseRoute('#/join/ab12cd')).toEqual({ name: 'invite', code: 'AB12CD' });
+    expect(parseRoute('#/setup/6d69f87288')).toEqual({ name: 'setup', code: '6D69F87288' });
+    expect(parseRoute('#/setup')).toEqual({ name: 'setup', code: '' });
+    expect(parseRoute('#/join')).toEqual({ name: 'home' });
+  });
+
+  it('builds a share link that round-trips through the router', async () => {
+    const { inviteLink } = await import('../pending');
+    const { parseRoute } = await import('../route');
+    const link = inviteLink('CD90F6DC64', 'https://x.test', '/');
+    expect(link).toBe('https://x.test/#/join/CD90F6DC64');
+    expect(parseRoute(link.slice(link.indexOf('#')))).toEqual({ name: 'invite', code: 'CD90F6DC64' });
+  });
+
+  it('validates e-mail and password while typing', async () => {
+    const { isEmail, checkPassword } = await import('../pending');
+    expect(isEmail('a@b.co')).toBe(true);
+    expect(isEmail(' a@b ')).toBe(false);
+    expect(isEmail('a b@c.com')).toBe(false);
+    expect(checkPassword('abc12')).toMatchObject({ long: false, ok: false });
+    expect(checkPassword('abcdefgh')).toMatchObject({ long: true, letter: true, digit: false, ok: false });
+    expect(checkPassword('abcdefg1').ok).toBe(true);
+    expect(checkPassword('12345678').letter).toBe(false);
+  });
+});

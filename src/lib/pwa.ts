@@ -24,6 +24,9 @@ const standalone = () =>
   window.matchMedia?.('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
 const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
 
+/** Worth showing the one-time "add to home screen" tip: a phone browser tab, not an installed app. */
+export const shouldSuggestInstall = () => !standalone() && /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+
 /** `native` = browser can show its own prompt; `ios` = show "add to home screen" instructions. */
 export function useInstall(): { mode: 'native' | 'ios' | null; install: () => Promise<void> } {
   const [, force] = useState(0);

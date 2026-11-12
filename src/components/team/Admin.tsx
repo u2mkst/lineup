@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../lib/auth';
+import { inviteMessage } from '../../lib/pending';
+import { go, paths } from '../../lib/route';
 import { fetchJoinCode, fetchMembers, regenerateJoinCode, removeMember, renameTeam, setMemberPlayer, setMemberRole } from '../../lib/cloud';
 import { useStore } from '../../lib/store';
 import { toast } from '../../lib/toast';
@@ -15,7 +17,7 @@ function JoinCodeCard() {
   const teamName = useAuth(s => s.teamName);
   const [busy, setBusy] = useState(false);
 
-  const message = `[${teamName}] 구단 합류 안내\n1. ${location.origin}${location.pathname} 접속\n2. 이메일로 가입\n3. 합류코드: ${code.data}`;
+  const message = inviteMessage(teamName, code.data ?? '');
   const share = async () => {
     try {
       if (navigator.share) await navigator.share({ text: message });
@@ -88,6 +90,12 @@ export function AdminPage() {
       </section>
 
       <JoinCodeCard />
+
+      <section className="card">
+        <div className="card-title"><h3>설정 마법사</h3></div>
+        <p className="hint">구단 이름, 선수 등록, 첫 일정, 팀원 초대를 한 화면씩 차례로 다시 진행해요.</p>
+        <button className="btn ghost sm" onClick={() => go(paths.setup())}>마법사 열기</button>
+      </section>
 
       <section className="card">
         <div className="card-title"><h3>팀원 {members.data ? members.data.length : ''}</h3></div>
