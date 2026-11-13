@@ -76,13 +76,22 @@ export function LoginScreen() {
   }
 
   if (phase === 'sent') {
+    // The password is still in memory, so after the mail link is opened one tap signs in.
+    const tryIn = async () => {
+      setBusy(true); setError('');
+      try { await signIn(email, password); } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
+    };
     return (
-      <Wizard title="메일을 확인해 주세요" sub={`${email}로 인증 메일을 보냈어요. 메일의 버튼을 누른 뒤 돌아와 로그인해 주세요.${pending ? ' 초대 정보는 이 기기에 기억해 둘게요.' : ''}`}
-        onSubmit={() => { setMode('in'); setPassword(''); setError(''); setPhase('password'); }}
+      <Wizard title="메일함을 확인해 주세요" sub={`${email}로 인증 메일을 보냈어요. 메일의 [인증하기] 버튼을 누르면 가입이 끝나요.${pending ? ' 초대 정보는 이 기기에 기억해 둘게요.' : ''}`}
+        onSubmit={() => void tryIn()}
         footer={<>
-          <NextButton>인증했어요, 로그인할게요</NextButton>
+          <NextButton busy={busy}>인증했어요, 시작할게요</NextButton>
           <button type="button" className="btn ghost lg block" onClick={() => void sendAgain()}>메일 다시 보내기</button>
-        </>} />
+          <button type="button" className="link wiz-switch" onClick={() => { setPhase('email'); setError(''); }}>이메일 주소가 틀렸어요</button>
+        </>}>
+        {error && <p className="error" role="alert">{/인증 링크/.test(error) ? '아직 인증 전이에요. 메일의 인증 버튼을 먼저 눌러 주세요. (스팸함도 확인해 보세요)' : error}</p>}
+        <p className="hint">같은 브라우저에서 인증 링크를 열면 이 화면이 알아서 넘어가요.</p>
+      </Wizard>
     );
   }
 

@@ -1,6 +1,8 @@
 import type { Session } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import { claimAdmin, fetchMyMember, fetchTeamName, joinTeam } from './cloud';
+import { confirmRedirect } from './pending';
+import { useRatings } from './ratingsStore';
 import { supabase } from './supabase';
 import type { Member } from '../types';
 
@@ -75,18 +77,19 @@ export const useAuth = create<AuthState>((set, get) => {
       if (error) throw message(error);
     },
     signUp: async (email, password) => {
-      const { data, error } = await supabase!.auth.signUp({ email: email.trim(), password });
+      const { data, error } = await supabase!.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: confirmRedirect() } });
       if (error) throw message(error);
       // An existing confirmed address comes back as a user with no identities.
       if (data.user && data.user.identities?.length === 0) throw message({ message: 'User already registered' });
       return { needsConfirm: !data.session };
     },
     resend: async email => {
-      const { error } = await supabase!.auth.resend({ type: 'signup', email: email.trim() });
+      const { error } = await supabase!.auth.resend({ type: 'signup', email: email.trim(), options: { emailRedirectTo: confirmRedirect() } });
       if (error) throw message(error);
     },
     signOut: async () => {
       await supabase?.auth.signOut();
+      useRatings.getState().reset();
       set({ ...empty });
     },
     join: async code => { await joinTeam(code); await get().refresh(); },

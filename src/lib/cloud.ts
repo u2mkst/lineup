@@ -1,6 +1,7 @@
 import type {
-  Attend, EventKind, EventStatus, Match, MatchStat, Member, Player, Pos, Post, PostComment, QuarterScore, Role, Tactic, TacticComment,
+  Attend, EventKind, EventStatus, Match, MatchStat, Member, Player, Pos, Post, PostComment, QuarterScore, Rating, Role, Tactic, TacticComment,
 } from '../types';
+import { RATING_KEYS } from '../types';
 import { sortRoster } from './roster';
 import { supabase } from './supabase';
 import { normalizePlayer, normalizeTactic } from './validate';
@@ -418,5 +419,27 @@ export async function addPostComment(postId: string, authorName: string, body: s
 
 export async function deletePostComment(id: string): Promise<void> {
   const { error } = await db().from('post_comments').delete().eq('id', id);
+  if (error) throw explain(error);
+}
+
+// ───────── 감독 비밀 능력치 (관리자만; 서버 RLS가 막아요) ─────────
+
+const RATING_COLS = 'player_id, shooting, passing, dribbling, defending, pace, stamina, physical, keeper, memo';
+
+export async function fetchRatings(): Promise<Record<string, Rating>> {
+  const { data, error } = await db().from('player_ratings').select(RATING_COLS);
+  if (error) throw explain(error);
+  const out: Record<string, Rating> = {};
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    const rating = Object.fromEntries(RATING_KEYS.map(k => [k, Number(r[k])])) as unknown as Rating;
+    if (typeof r.memo === 'string' && r.memo) rating.memo = r.memo;
+    out[r.player_id as string] = rating;
+  }
+  return out;
+}
+
+export async function saveRating(playerId: string, r: Rating): Promise<void> {
+  const row = { player_id: playerId, ...Object.fromEntries(RATING_KEYS.map(k => [k, Math.min(10, Math.max(1, Math.round(r[k])))])), memo: r.memo?.trim() || null, updated_at: new Date().toISOString() };
+  const { error } = await db().from('player_ratings').upsert(row, { onConflict: 'player_id' });
   if (error) throw explain(error);
 }

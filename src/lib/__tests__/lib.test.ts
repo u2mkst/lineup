@@ -421,3 +421,74 @@ describe('invite links and sign-up checks', () => {
     expect(checkPassword('12345678').letter).toBe(false);
   });
 });
+
+describe('quick pick from secret ratings', () => {
+  const pl = (id: string, pos: 'GK' | 'DF' | 'MF' | 'FW', extra: Record<string, unknown> = {}) => ({ id, number: id, name: id, pos, ...extra });
+  const rate = (o: Partial<Record<string, number>>) => ({ shooting: 5, passing: 5, dribbling: 5, defending: 5, pace: 5, stamina: 5, physical: 5, keeper: 5, ...o });
+
+  it('puts the best keeper in goal and the best finisher up front', async () => {
+    const { pickBest } = await import('../ratings');
+    const players = [pl('gk1', 'GK'), pl('gk2', 'GK'), pl('d1', 'DF'), pl('f1', 'FW'), pl('f2', 'FW')] as never[];
+    const ratings = { gk1: rate({ keeper: 4 }), gk2: rate({ keeper: 9 }), f1: rate({ shooting: 9 }), f2: rate({ shooting: 5 }), d1: rate({ defending: 8 }) };
+    const r = pickBest(players, ratings, ['GK', 'LCB', 'ST']);
+    expect(r.picks.map(x => x.playerId)).toEqual(['gk2', 'd1', 'f1']);
+    expect(r.unrated).toEqual([]);
+  });
+
+  it('finds the best overall assignment, not a greedy one', async () => {
+    const { pickBest } = await import('../ratings');
+    // a is great at both slots, b is only fine at ST: a should take the slot where the gap to b is bigger
+    const players = [pl('a', 'FW'), pl('b', 'FW')] as never[];
+    const ratings = { a: rate({ shooting: 9, passing: 9, dribbling: 9, pace: 9, stamina: 9 }), b: rate({ shooting: 7, pace: 7, physical: 7, dribbling: 6 }) };
+    const r = pickBest(players, ratings, ['ST', 'CM']);
+    const total = r.picks.reduce((s, x) => s + x.score, 0);
+    const swapped = pickBest(players, ratings, ['CM', 'ST']);
+    expect(total).toBe(swapped.picks.reduce((s, x) => s + x.score, 0));
+    expect(r.picks.map(x => x.playerId).sort()).toEqual(['a', 'b']);
+  });
+
+  it('skips injured players, honours the pool and manual exclusions, and leaves slots empty when short', async () => {
+    const { pickBest } = await import('../ratings');
+    const players = [pl('a', 'MF', { out: true }), pl('b', 'MF'), pl('c', 'MF')] as never[];
+    const ratings = { a: rate({ passing: 10, stamina: 10 }) };
+    expect(pickBest(players, ratings, ['CM']).picks[0].playerId).not.toBe('a');
+    expect(pickBest(players, ratings, ['CM'], { pool: new Set(['c']) }).picks[0].playerId).toBe('c');
+    expect(pickBest(players, ratings, ['CM', 'CM'], { exclude: new Set(['b']) }).picks.map(x => x.playerId).sort()).toEqual(['a', 'c']); // injured used only when needed
+    const short = pickBest(players.slice(0, 1), {}, ['CM', 'ST']);
+    expect(short.picks.filter(x => x.playerId)).toHaveLength(1);
+    expect(short.picks.some(x => x.playerId === null)).toBe(true);
+  });
+
+  it('rates a secondary position slightly lower and a field player in goal very low', async () => {
+    const { fit } = await import('../ratings');
+    expect(fit(pl('x', 'DF') as never, 'LCB')).toBe(1);
+    expect(fit(pl('x', 'DF', { altPos: ['MF'] }) as never, 'CM')).toBeLessThan(1);
+    expect(fit(pl('x', 'MF') as never, 'GK')).toBeLessThan(0.5);
+  });
+
+  it('reports unrated picks so the coach knows they were counted as average', async () => {
+    const { pickBest } = await import('../ratings');
+    const r = pickBest([pl('a', 'FW'), pl('b', 'FW')] as never[], { a: rate({}) }, ['ST', 'LST']);
+    expect(r.unrated).toEqual(['b']);
+  });
+});
+
+describe('bulk player entry', () => {
+  it('reads number, name and position in any order', async () => {
+    const { parsePlayers } = await import('../bulkPlayers');
+    const rows = parsePlayers('7 김철수 MF\n이영희 10 공격수\n#3, 박민수, DF\n1 최골키 GK');
+    expect(rows.map(r => [r.number, r.name, r.pos])).toEqual([['7', '김철수', 'MF'], ['10', '이영희', 'FW'], ['3', '박민수', 'DF'], ['1', '최골키', 'GK']]);
+    expect(rows.every(r => !r.error)).toBe(true);
+  });
+  it('defaults to MF and skips blank lines', async () => {
+    const { parsePlayers } = await import('../bulkPlayers');
+    const rows = parsePlayers('\n  9번 홍길동 \n\n');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ number: '9', name: '홍길동', pos: 'MF', line: 2 });
+  });
+  it('flags missing numbers, long names and duplicate numbers (also against the existing roster)', async () => {
+    const { parsePlayers } = await import('../bulkPlayers');
+    const rows = parsePlayers('김철수 MF\n7 아주아주긴이름입니다\n5 가나\n5 다라\n8 마바', [{ number: '8', name: '기존' }]);
+    expect(rows.map(r => r.error)).toEqual(['등번호가 없어요', '이름은 8자 이내예요', undefined, '가나와(과) 번호가 겹쳐요', '기존 선수가 이미 쓰는 번호예요']);
+  });
+});

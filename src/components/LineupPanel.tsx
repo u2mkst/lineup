@@ -5,6 +5,8 @@ import { cloudEnabled } from '../lib/supabase';
 import { benchOf } from '../lib/scene';
 import type { Player, Tactic } from '../types';
 import { FormationSheet } from './FormationSheet';
+import { QuickPick } from './QuickPick';
+import { RatingsSheet } from './RatingsSheet';
 import { IconChevron } from './Icons';
 import { Section } from './Section';
 
@@ -32,6 +34,9 @@ export function LineupPanel({ tactic, roster, onOpenRoster }: Props) {
   const bench = benchOf(tactic, roster);
   const filled = Object.values(tactic.us.assign).filter(Boolean).length;
   const [sheet, setSheet] = useState<'us' | 'opp' | null>(null);
+  const [quick, setQuick] = useState(false);
+  const [rating, setRating] = useState(false);
+  const coach = isAdmin && cloudEnabled;
   const confirmReset = () => tactic.frames.length <= 1 || confirm('전술 장면이 장면 1만 남고 모두 사라져요. 계속할까요?');
 
   return (
@@ -46,6 +51,7 @@ export function LineupPanel({ tactic, roster, onOpenRoster }: Props) {
           <span><small>포메이션</small>{tactic.us.formation}</span><IconChevron width={18} height={18} />
         </button>
         <div className="btn-row">
+          {coach && <button className="btn sm primary" onClick={() => setQuick(true)}>⚡ 빠른 선발</button>}
           <button className="btn sm" onClick={() => s.autoFill(id)}>포지션별 자동 채우기</button>
           <button className="btn sm ghost" onClick={() => s.clearAssign(id)}>비우기</button>
           <button className="btn sm ghost" onClick={() => confirmReset() && s.resetLayout(id)}>위치 초기화</button>
@@ -91,6 +97,8 @@ export function LineupPanel({ tactic, roster, onOpenRoster }: Props) {
         </div>
       </Section>
 
+      {quick && <QuickPick tacticId={id} onClose={() => setQuick(false)} onRate={() => { setQuick(false); setRating(true); }} />}
+      {rating && <RatingsSheet onClose={() => setRating(false)} />}
       {sheet && (
         <FormationSheet
           title={sheet === 'us' ? '우리 팀 포메이션' : '상대 팀 포메이션'}

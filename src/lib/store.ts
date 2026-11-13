@@ -78,6 +78,8 @@ interface State {
   setOpponent: (id: string, on: boolean) => void;
   assignPlayer: (id: string, token: string, playerId: string | null) => void;
   autoFill: (id: string) => void;
+  /** put these players (one per slot, in slot order) into the line-up */
+  applyPicks: (id: string, picks: (string | null)[]) => void;
   clearAssign: (id: string) => void;
 
   moveToken: (id: string, frame: number, token: string, pt: Pt) => void;
@@ -259,6 +261,10 @@ export const useStore = create<State>()(
           edit(id, t => {
             const picks = autoAssign(get().roster, rolesFor(t.us.formation));
             tokenIds('us').forEach((k, i) => (t.us.assign[k] = picks[i]));
+          }),
+        applyPicks: (id, picks) =>
+          edit(id, t => {
+            tokenIds('us').forEach((k, i) => (t.us.assign[k] = picks[i] ?? null));
           }),
         clearAssign: id =>
           edit(id, t => {

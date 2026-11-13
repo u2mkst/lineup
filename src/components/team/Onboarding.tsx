@@ -8,6 +8,7 @@ import { reloadRoster } from '../../lib/sync';
 import { toast } from '../../lib/toast';
 import type { EventKind, Pos } from '../../types';
 import { toLocalInput } from './EventForm';
+import { BulkAddForm } from '../AddPlayers';
 import { NextButton, Wizard } from './Wizard';
 
 const POS_CHOICES: { id: Pos; label: string; hint: string }[] = [
@@ -17,10 +18,10 @@ const POS_CHOICES: { id: Pos; label: string; hint: string }[] = [
   { id: 'FW', label: '공격수', hint: 'FW' },
 ];
 
-type Stage = 'name' | 'roster' | 'p-name' | 'p-number' | 'p-pos' | 'p-added' | 'event' | 'event-form' | 'invite' | 'install' | 'done';
+type Stage = 'name' | 'roster' | 'p-name' | 'p-number' | 'p-pos' | 'p-added' | 'bulk' | 'event' | 'event-form' | 'invite' | 'install' | 'done';
 const MAIN: Stage[] = ['name', 'roster', 'event', 'invite', 'install'];
 const mainIndex = (s: Stage): number => {
-  if (s.startsWith('p-')) return 2;
+  if (s.startsWith('p-') || s === 'bulk') return 2;
   if (s === 'event-form') return 3;
   const i = MAIN.indexOf(s);
   return i < 0 ? MAIN.length : i + 1;
@@ -114,6 +115,7 @@ export function AdminSetup({ onDone }: { onDone: () => void }) {
           onBack={() => setStage('name')} onSubmit={() => setStage('p-name')}
           footer={<>
             <NextButton>한 명씩 추가하기</NextButton>
+            <button type="button" className="btn ghost lg block" onClick={() => setStage('bulk')}>여러 명 한꺼번에 붙여넣기</button>
             {roster.length > 0 && <button type="button" className="btn ghost lg block" disabled={busy} onClick={clearSample}>비우고 새로 시작하기</button>}
             <button type="button" className="link wiz-switch" onClick={() => setStage('event')}>{roster.length ? '이 명단 그대로 쓸게요' : '나중에 할게요'}</button>
           </>}>
@@ -121,12 +123,19 @@ export function AdminSetup({ onDone }: { onDone: () => void }) {
         </Wizard>
       );
 
+    case 'bulk':
+      return (
+        <Wizard step={step} total={total} title="명단을 붙여넣어 주세요" sub="한 줄에 한 명: 등번호, 이름, 포지션" onBack={() => setStage('roster')}>
+          <BulkAddForm submitLabel="추가하고 다음" onDone={n => { setAdded(a => a + n); setStage('event'); }} />
+        </Wizard>
+      );
+
     case 'p-name':
       return (
-        <Wizard step={step} total={total} title="선수 이름이 뭐예요?" sub={added ? `${added}명 추가했어요` : undefined}
+        <Wizard step={step} total={total} title="선수 이름이 뭐예요?" sub={added ? `${added}명 추가했어요 · 이름은 8자 이내` : '이름은 8자 이내예요'}
           onBack={() => setStage(added ? 'p-added' : 'roster')} onSubmit={() => { if (pName.trim()) setStage('p-number'); }}
           footer={<NextButton disabled={!pName.trim()}>다음</NextButton>}>
-          <input className="wiz-input" value={pName} maxLength={20} autoFocus aria-label="선수 이름" onChange={e => setPName(e.target.value)} />
+          <input className="wiz-input" value={pName} maxLength={8} autoFocus aria-label="선수 이름" onChange={e => setPName(e.target.value)} />
         </Wizard>
       );
 

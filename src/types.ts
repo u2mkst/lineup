@@ -189,3 +189,8 @@ export interface TacticComment {
   body: string;
   createdAt: string;
 }
+
+/** 감독 전용 비밀 능력치 (1~10). 서버에서 관리자만 읽을 수 있어요. */
+export const RATING_KEYS = ['shooting', 'passing', 'dribbling', 'defending', 'pace', 'stamina', 'physical', 'keeper'] as const;
+export type RatingKey = (typeof RATING_KEYS)[number];
+export type Rating = Record<RatingKey, number> & { memo?: string };

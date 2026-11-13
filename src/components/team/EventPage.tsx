@@ -11,6 +11,8 @@ import { useAsync } from '../../lib/useAsync';
 import type { Attend, Match, Tactic } from '../../types';
 import { IconLink, IconMapPin } from '../Icons';
 import { Menu } from '../Menu';
+import { QuickPick } from '../QuickPick';
+import { RatingsSheet } from '../RatingsSheet';
 import { Sheet } from '../Sheet';
 import { TacticComments } from '../TacticComments';
 import { Loading, PageHeader } from '../ui';
@@ -31,6 +33,8 @@ export function EventPage({ id }: { id: string }) {
   const [tactic, setTactic] = useState<Tactic | null | undefined>(undefined);
   const [editing, setEditing] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [quick, setQuick] = useState(false);
+  const [rating, setRating] = useState(false);
   const [proxy, setProxy] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -85,6 +89,7 @@ export function EventPage({ id }: { id: string }) {
           <button className="icon-btn" aria-label="일정 링크 복사" onClick={() => void copy()}><IconLink /></button>
           {isAdmin && <Menu label="일정 메뉴" items={[
             { label: '수정', onClick: () => setEditing(true) },
+            ...(isMatch && m.status !== 'finished' ? [{ label: '⚡ 빠른 선발로 라인업 만들기', onClick: () => setQuick(true) }] : []),
             ...(isMatch ? [{ label: m.status === 'finished' ? '경기 기록 수정' : '경기 기록 입력', onClick: () => setRecording(true) }] : []),
             m.status === 'cancelled' ? { label: '취소 해제', onClick: () => void setStatus('scheduled') } : { label: '일정 취소 처리', onClick: () => void setStatus('cancelled') },
             { label: '삭제', danger: true, onClick: () => confirm(`"${m.title}" 일정을 삭제할까요?`) && void deleteMatch(m.id).then(() => { void loadTeam(); go(paths.schedule); }).catch(e => toast((e as Error).message, 'error')) },
@@ -169,6 +174,8 @@ export function EventPage({ id }: { id: string }) {
         </Sheet>
       )}
       {editing && <EventForm match={m} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); reloadAll(); }} onDeleted={() => { void loadTeam(); go(paths.schedule); }} />}
+      {quick && <QuickPick matchId={m.id} onClose={() => setQuick(false)} onRate={() => { setQuick(false); setRating(true); }} onDone={tid => go(paths.editor(tid))} />}
+      {rating && <RatingsSheet onClose={() => setRating(false)} />}
       {recording && <RecordForm match={m} roster={roster} stats={matchStats} votes={v} onClose={() => setRecording(false)} onSaved={() => { setRecording(false); reloadAll(); }} />}
     </>
   );

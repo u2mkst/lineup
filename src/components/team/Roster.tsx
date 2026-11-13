@@ -4,7 +4,9 @@ import { averageAge, playerLines, seasonOf } from '../../lib/stats';
 import { useStore } from '../../lib/store';
 import { useTeamData } from '../../lib/teamData';
 import type { Player, Pos } from '../../types';
+import { AddPlayersSheet } from '../AddPlayers';
 import { AdminRoster } from '../AdminRoster';
+import { RatingsSheet } from '../RatingsSheet';
 import { Sheet } from '../Sheet';
 import { Loading, PageHeader } from '../ui';
 import { useEffect } from 'react';
@@ -20,6 +22,8 @@ export function RosterPage() {
   const { matches, stats, loaded, load } = useTeamData();
   const [open, setOpen] = useState<Player | null>(null);
   const [managing, setManaging] = useState(false);
+  const [adding, setAdding] = useState<'one' | 'many' | null>(null);
+  const [rating, setRating] = useState(false);
   useEffect(() => { void load(); }, [load]);
 
   const age = averageAge(roster);
@@ -29,7 +33,14 @@ export function RosterPage() {
 
   return (
     <>
-      <PageHeader title="선수단" back="#/more" right={isAdmin && <button className="btn sm primary" onClick={() => setManaging(true)}>선수단 관리</button>} />
+      <PageHeader title="선수단" back="#/more" right={isAdmin && <button className="btn sm primary" onClick={() => setAdding('one')}>＋ 선수 추가</button>} />
+      {isAdmin && (
+        <div className="admin-bar" role="group" aria-label="관리자 도구">
+          <button className="btn sm" onClick={() => setAdding('many')}>여러 명 한꺼번에</button>
+          <button className="btn sm" onClick={() => setRating(true)}>🔒 능력치 평가</button>
+          <button className="btn sm ghost" onClick={() => setManaging(true)}>번호·포지션 수정</button>
+        </div>
+      )}
       <section className="card">
         <div className="card-title"><h3>선수단 구성</h3><span className="muted small">총 {roster.length}명</span></div>
         <div className="roster-tiles">
@@ -57,7 +68,9 @@ export function RosterPage() {
           </section>
         );
       })}
-      {roster.length === 0 && <Loading text="선수가 없어요." />}
+      {roster.length === 0 && (isAdmin
+        ? <div className="empty-msg"><p>아직 선수가 없어요</p><button className="btn primary lg" onClick={() => setAdding('many')}>선수 추가하기</button></div>
+        : <Loading text="선수가 없어요." />)}
 
       {open && (
         <Sheet title={`${open.number} ${open.name}`} onClose={() => setOpen(null)}>
@@ -73,6 +86,8 @@ export function RosterPage() {
           )}
         </Sheet>
       )}
+      {adding && <AddPlayersSheet start={adding} onClose={() => setAdding(null)} />}
+      {rating && <RatingsSheet onClose={() => setRating(false)} />}
       {managing && <AdminRoster onClose={() => setManaging(false)} />}
     </>
   );

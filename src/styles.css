@@ -605,3 +605,35 @@ button.bench-chip.out { opacity: .7; }
 body:has(.wizard) .toaster { bottom: auto; top: calc(64px + env(safe-area-inset-top)); }
 body:has(.wizard) .toast:not(.error) { display: none; }
 .wiz-pass .link { flex: none; white-space: nowrap; }
+
+/* ───────── admin tools: roster bar, ratings, quick pick, bulk add ───────── */
+.admin-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.rate-group h4 { margin: 14px 0 6px; font-size: 13px; color: var(--muted); }
+.rate-block { border-bottom: 1px solid var(--line); }
+.rate-row { width: 100%; display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 10px; min-height: 48px; background: transparent; border: 0; text-align: left; }
+.rate-row b { color: var(--accent); }
+.ovr { font-style: normal; font-weight: 800; background: var(--accent-soft); color: var(--accent); border-radius: 99px; padding: 3px 10px; font-size: 13px; }
+.ovr.none { background: var(--surface-2); color: var(--muted); font-weight: 700; }
+.rate-edit { display: grid; gap: 4px; padding: 4px 0 14px; }
+.rate-slider { display: grid; grid-template-columns: 64px 1fr 24px; align-items: center; gap: 10px; min-height: 40px; }
+.rate-slider input[type="range"] { width: 100%; accent-color: var(--accent); }
+.rate-slider b { text-align: right; }
+.pick-head { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+.strength { background: var(--accent); color: var(--accent-ink); font-weight: 800; border-radius: 99px; padding: 3px 12px; font-size: 13px; }
+.pick-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.pick-list li { display: grid; grid-template-columns: 44px 1fr 56px 28px 32px; align-items: center; gap: 8px; min-height: 42px; border-bottom: 1px solid var(--line); }
+.pick-list li.vacant { opacity: .5; }
+.pick-list .role { font-style: normal; font-weight: 800; font-size: 12px; color: var(--muted); }
+.pick-list .pname { font-weight: 700; }
+.pick-list .bar { height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.pick-list .bar i { display: block; height: 100%; background: var(--accent); }
+.pick-list b { text-align: right; font-size: 13px; }
+.bulk { display: grid; gap: 10px; }
+.bulk-text { width: 100%; min-height: 150px; padding: 12px; line-height: 1.6; resize: vertical; }
+.bulk-preview { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 220px; overflow: auto; }
+.bulk-preview li { display: grid; grid-template-columns: 36px 1fr 36px; gap: 8px; align-items: center; padding: 6px 10px; border-radius: var(--r-sm); background: var(--surface-2); }
+.bulk-preview li.bad { background: #fdecec; }
+.bulk-preview li em { grid-column: 1 / -1; font-style: normal; font-size: 12px; }
+.bulk-preview li b { color: var(--accent); }
+/* over a bottom sheet, notices go to the top so they never cover the sheet's buttons */
+body:has(.sheet-backdrop) .toaster { bottom: auto; top: calc(14px + env(safe-area-inset-top)); z-index: 120; }

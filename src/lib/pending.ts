@@ -52,3 +52,23 @@ export function checkPassword(v: string): PasswordCheck {
 export function inviteMessage(teamName: string, code: string): string {
   return `[${teamName}] 축구방 초대\n아래 링크를 열고 이메일로 가입하면 바로 합류돼요.\n${inviteLink(code)}\n(링크가 안 열리면 합류코드: ${code})`;
 }
+
+/** Where the confirmation e-mail sends the person back to; carries an invite code so another browser can still join. */
+export function confirmRedirect(): string {
+  const base = `${location.origin}${location.pathname}`;
+  const p = readPending();
+  return p?.kind === 'invite' ? `${base}?invite=${encodeURIComponent(p.code)}` : base;
+}
+
+/** `?invite=CODE` (from a confirmation mail) is remembered like an invite link, then removed from the address bar. */
+export function captureFromQuery() {
+  try {
+    const q = new URLSearchParams(location.search);
+    const code = q.get('invite');
+    if (!code) return;
+    savePending({ kind: 'invite', code: code.toUpperCase() });
+    q.delete('invite');
+    const rest = q.toString();
+    history.replaceState(null, '', `${location.pathname}${rest ? `?${rest}` : ''}${location.hash}`);
+  } catch { /* ignore */ }
+}
