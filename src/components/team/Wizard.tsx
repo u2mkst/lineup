@@ -22,7 +22,7 @@ export function Wizard({ step, total, title, sub, onBack, footer, children, onSu
   return (
     <form className="wizard" onSubmit={e => { e.preventDefault(); onSubmit?.(); }}>
       <div className="wiz-top">
-        {onBack ? <button type="button" className="icon-btn" onClick={onBack} aria-label="이전"><IconBack /></button> : <span className="wiz-brand"><IconLogo width={26} height={26} /></span>}
+        {onBack ? <button type="button" className="icon-btn" onClick={onBack} aria-label="이전"><IconBack /></button> : <span className="wiz-brand"><IconLogo width={24} height={32} /></span>}
         {step && total ? (
           <div className="wiz-progress" role="progressbar" aria-valuemin={1} aria-valuemax={total} aria-valuenow={step} aria-label={`${total}단계 중 ${step}단계`}>
             <span style={{ width: `${Math.min(100, (step / total) * 100)}%` }} />

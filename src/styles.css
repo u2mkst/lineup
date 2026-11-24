@@ -748,3 +748,9 @@ body:has(.sheet-backdrop) .toaster { bottom: auto; top: calc(14px + env(safe-are
   .adm-main { padding: 16px 14px 64px; }
   .adm-tiles { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* club emblem */
+.home-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.home-id h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wiz-top .wiz-brand { width: 36px; height: 40px; }
+.adm-brand img { flex: none; }

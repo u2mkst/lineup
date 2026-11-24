@@ -12,7 +12,7 @@ import { Loading } from '../ui';
 import { NextButton, Wizard } from './Wizard';
 
 export function Splash() {
-  return <div className="auth-screen"><IconLogo width={56} height={56} /><p className="muted small" role="status">불러오는 중…</p></div>;
+  return <div className="auth-screen"><IconLogo width={64} height={80} /><p className="muted small" role="status">불러오는 중…</p></div>;
 }
 
 const invitedLine = (p: Pending | null) =>
@@ -65,7 +65,7 @@ export function LoginScreen() {
           <NextButton>시작하기</NextButton>
           <button type="button" className="btn ghost lg block" onClick={() => begin('in')}>이미 계정이 있어요</button>
         </>}>
-        <div className="wiz-hero" aria-hidden><IconLogo width={84} height={84} /></div>
+        <div className="wiz-hero" aria-hidden><IconLogo width={120} height={150} /></div>
         <ul className="wiz-points">
           <li>일정 확인하고 참석 투표</li>
           <li>경기 기록과 시즌 통계</li>
@@ -168,7 +168,7 @@ export function JoinScreen() {
   }, []);
 
   if (busy && pending && !error) {
-    return <div className="auth-screen"><IconLogo width={56} height={56} /><p className="muted small" role="status">{pending.kind === 'setup' ? '구단을 만드는 중…' : '구단에 합류하는 중…'}</p></div>;
+    return <div className="auth-screen"><IconLogo width={64} height={80} /><p className="muted small" role="status">{pending.kind === 'setup' ? '구단을 만드는 중…' : '구단에 합류하는 중…'}</p></div>;
   }
 
   return (

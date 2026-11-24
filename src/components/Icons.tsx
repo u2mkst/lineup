@@ -31,12 +31,9 @@ export const IconChevron = (p: P) => base(<path d="M6 9l6 6 6-6" />, p);
 export const IconUser = (p: P) => base(<><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0116 0" /></>, p);
 export const IconSettings = (p: P) => base(<><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z" /></>, p);
 export const IconUsers = (p: P) => base(<><circle cx="9" cy="8" r="3.5" /><path d="M2 20a7 7 0 0114 0M16 4.5a3.5 3.5 0 010 7M18 14a7 7 0 013.5 6" /></>, p);
-export const IconLogo = (p: P) => (
-  <svg width="28" height="28" viewBox="0 0 512 512" aria-hidden {...p}>
-    <rect width="512" height="512" rx="112" fill="#1f6f43" />
-    <circle cx="256" cy="256" r="120" fill="#fff" />
-    <path d="M256 180l70 51-27 82h-86l-27-82z" fill="#0b1f17" />
-  </svg>
+/** The club emblem. width/height give the box it is fitted into; the diamond keeps its proportions. */
+export const IconLogo = ({ width = 28, height = 28, className }: { width?: number | string; height?: number | string; className?: string }) => (
+  <img className={className} src="/emblem.png" width={width} height={height} alt="" aria-hidden decoding="async" style={{ objectFit: 'contain' }} />
 );
 export const IconSelect = (p: P) => base(<><rect x="4" y="4" width="14" height="14" rx="2" strokeDasharray="3 3" /><path d="M13 13l7 3-3 1-1 3z" fill="currentColor" /></>, p);
 export const IconSwap = (p: P) => base(<><path d="M7 4L3 8l4 4" /><path d="M3 8h13" /><path d="M17 20l4-4-4-4" /><path d="M21 16H8" /></>, p);

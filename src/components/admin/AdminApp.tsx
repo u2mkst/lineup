@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from '../../lib/auth';
 import type { AdminSection } from '../../lib/adminTodos';
 import { cloudEnabled } from '../../lib/supabase';
-import { IconCalendar, IconChart, IconKey, IconSettings, IconUser, IconUsers } from '../Icons';
+import { IconCalendar, IconChart, IconKey, IconLogo, IconSettings, IconUser, IconUsers } from '../Icons';
 import { JoinScreen, LoginScreen, Splash } from '../team/AuthScreens';
 import { EventsSection, MembersSection, OverviewSection, PlayersSection, RatingsSection, SettingsSection } from './Sections';
 
@@ -84,7 +84,7 @@ export function AdminApp() {
   return (
     <div className="adm">
       <aside className="adm-side">
-        <div className="adm-brand"><b>{teamName}</b><em>관리자</em></div>
+        <div className="adm-brand"><IconLogo width={26} height={34} /><b>{teamName}</b><em>관리자</em></div>
         <nav aria-label="관리자 메뉴">
           {NAV.map(n => (
             <a key={n.id} href={n.id === 'overview' ? '#/' : `#/${n.id}`} className={section === n.id ? 'on' : ''} aria-current={section === n.id ? 'page' : undefined}>{n.icon}<span>{n.label}</span></a>

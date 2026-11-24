@@ -10,7 +10,7 @@ import { useTeamData } from '../../lib/teamData';
 import { toast } from '../../lib/toast';
 import { useAsync } from '../../lib/useAsync';
 import type { Attend } from '../../types';
-import { IconChevronRight, IconMapPin, IconPin } from '../Icons';
+import { IconChevronRight, IconLogo, IconMapPin, IconPin } from '../Icons';
 import { Loading } from '../ui';
 import { ResultsCard, ScoringCard, SeasonTiles, SocialCards } from './Dashboard';
 
@@ -46,7 +46,7 @@ export function HomeDashboard() {
   return (
     <>
       <header className="home-top">
-        <div><small className="muted">{new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}</small><h1>{teamName}</h1></div>
+        <div className="home-id"><IconLogo width={40} height={52} /><div><small className="muted">{new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}</small><h1>{teamName}</h1></div></div>
         <a className="avatar" href={paths.me} aria-label="내 프로필">{roster.find(p => p.id === me)?.number ?? '나'}</a>
       </header>
 

@@ -1,6 +1,6 @@
 // Offline support: app shell is cached on install, assets are cached as they are used.
-const VERSION = 'chukgubang-v2';
-const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
+const VERSION = 'chukgubang-v3';
+const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/emblem.png', '/favicon.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
