@@ -492,3 +492,58 @@ describe('bulk player entry', () => {
     expect(rows.map(r => r.error)).toEqual(['등번호가 없어요', '이름은 8자 이내예요', undefined, '가나와(과) 번호가 겹쳐요', '기존 선수가 이미 쓰는 번호예요']);
   });
 });
+
+describe('dashboard data', () => {
+  const m = (id: string, kickoff: string, us: number, opp: number, extra: Record<string, unknown> = {}) =>
+    ({ id, kind: 'match', title: id, opponent: id, kickoff, venue: null, notes: null, tacticId: null, status: 'finished', ourScore: us, oppScore: opp, quarters: [], potmPlayerId: null, voteDeadline: null, ...extra }) as never;
+  const s = (matchId: string, playerId: string, goals: number, assists = 0) => ({ matchId, playerId, played: true, goals, assists }) as never;
+  const roster = [{ id: 'a', number: '9', name: '가나', pos: 'FW' }, { id: 'b', number: '7', name: '다라', pos: 'MF' }, { id: 'c', number: '5', name: '마바', pos: 'DF' }] as never[];
+
+  it('lists the newest finished matches with scorers, most goals first', async () => {
+    const { recentResults, form } = await import('../dashboard');
+    const ms = [m('m1', '2026-03-01T10:00:00Z', 2, 1), m('m2', '2026-04-01T10:00:00Z', 0, 0), m('m3', '2026-05-01T10:00:00Z', 1, 3), m('x', '2026-06-01T10:00:00Z', 0, 0, { status: 'scheduled', ourScore: null, oppScore: null }), m('old', '2025-05-01T10:00:00Z', 5, 0)];
+    const st = [s('m1', 'b', 1), s('m1', 'a', 1), s('m3', 'a', 1)];
+    const rows = recentResults(ms, st, roster, 2026);
+    expect(rows.map(r => [r.match.id, r.outcome])).toEqual([['m3', 'lose'], ['m2', 'draw'], ['m1', 'win']]);
+    expect(rows[2].scorers.map(x => x.name)).toEqual(['가나', '다라']);
+    expect(form(ms, 2026)).toEqual(['win', 'draw', 'lose']);
+    expect(recentResults(ms, st, roster, 2026, 2)).toHaveLength(2);
+  });
+
+  it('ranks scorers with shared places for ties and ignores zeros and unknown players', async () => {
+    const { scoreboard } = await import('../dashboard');
+    const ms = [m('m1', '2026-03-01T10:00:00Z', 4, 0), m('m2', '2026-04-01T10:00:00Z', 2, 0)];
+    const st = [s('m1', 'a', 2, 1), s('m1', 'b', 2), s('m1', 'c', 0, 0), s('m2', 'a', 1), s('m2', 'zz', 9)];
+    const goals = scoreboard(ms, st, roster, 2026, 'goals');
+    expect(goals.map(r => [r.playerId, r.value, r.rank])).toEqual([['a', 3, 1], ['b', 2, 2]]);
+    const pts = scoreboard(ms, st, roster, 2026, 'points');
+    expect(pts[0]).toMatchObject({ playerId: 'a', value: 4 });
+    expect(scoreboard(ms, st, roster, 2025, 'goals')).toEqual([]);
+    const tie = scoreboard(ms, [s('m1', 'a', 2), s('m1', 'b', 2), s('m2', 'c', 1)], roster, 2026, 'goals');
+    expect(tie.map(r => r.rank)).toEqual([1, 1, 3]);
+  });
+
+  it('shows this season, or the latest one with results', async () => {
+    const { defaultSeason } = await import('../dashboard');
+    const now = new Date('2026-11-24T00:00:00Z');
+    expect(defaultSeason([m('a', '2026-03-01T10:00:00Z', 1, 0)], now)).toBe(2026);
+    expect(defaultSeason([m('a', '2025-03-01T10:00:00Z', 1, 0)], now)).toBe(2025);
+    expect(defaultSeason([], now)).toBe(2026);
+  });
+});
+
+describe('social links', () => {
+  it('defaults to @yeonmufc and builds profile urls', async () => {
+    const { socialLinks } = await import('../social');
+    const s = socialLinks({});
+    expect(s.instagram).toEqual({ handle: 'yeonmufc', url: 'https://www.instagram.com/yeonmufc/' });
+    expect(s.youtube).toMatchObject({ handle: 'yeonmufc', url: 'https://www.youtube.com/@yeonmufc', uploadsEmbed: null });
+  });
+  it('accepts overrides, rejects odd handles, and only embeds with a valid channel id', async () => {
+    const { socialLinks } = await import('../social');
+    expect(socialLinks({ VITE_INSTAGRAM_HANDLE: '@other.fc' }).instagram.handle).toBe('other.fc');
+    expect(socialLinks({ VITE_INSTAGRAM_HANDLE: 'x"><script>' }).instagram.handle).toBe('yeonmufc');
+    expect(socialLinks({ VITE_YOUTUBE_CHANNEL_ID: 'UCabcdefghijklmnopqrstuv' }).youtube.uploadsEmbed).toBe('https://www.youtube.com/embed/videoseries?list=UUabcdefghijklmnopqrstuv');
+    expect(socialLinks({ VITE_YOUTUBE_CHANNEL_ID: 'nope' }).youtube.uploadsEmbed).toBeNull();
+  });
+});

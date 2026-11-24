@@ -637,3 +637,62 @@ body:has(.wizard) .toast:not(.error) { display: none; }
 .bulk-preview li b { color: var(--accent); }
 /* over a bottom sheet, notices go to the top so they never cover the sheet's buttons */
 body:has(.sheet-backdrop) .toaster { bottom: auto; top: calc(14px + env(safe-area-inset-top)); z-index: 120; }
+
+/* ───────── home dashboard ───────── */
+.dash { display: grid; gap: 12px; }
+.dash > .card, .dash > .span2 > .card { margin: 0; }
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.kpi-grid > div { background: var(--bg); border-radius: var(--r-sm); padding: 10px 8px; display: grid; gap: 2px; text-align: center; }
+.kpi-grid small { color: var(--muted); font-size: 12px; font-weight: 700; }
+.kpi-grid b { font-size: 26px; letter-spacing: -.03em; line-height: 1.1; }
+.kpi-grid b span { font-size: 13px; margin-left: 1px; color: var(--muted); }
+.kpi-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 10px; }
+.wdl b { font-size: 14px; }
+.wdl .win, .res-badge.win, .form i.win { color: var(--accent); }
+.wdl .draw, .res-badge.draw, .form i.draw { color: var(--muted); }
+.wdl .lose, .res-badge.lose, .form i.lose { color: var(--danger); }
+.form { margin-left: auto; display: inline-flex; gap: 4px; }
+.form i { font-style: normal; font-size: 12px; font-weight: 800; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); }
+.form i.win { background: var(--accent-soft); }
+.form i.lose { background: #fdecec; }
+.result-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.result-list li + li { border-top: 1px solid var(--line); }
+.result-list a { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 12px; padding: 11px 0; text-decoration: none; }
+.res-badge { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; font-weight: 800; font-size: 14px; background: var(--surface-2); }
+.res-badge.win { background: var(--accent-soft); }
+.res-badge.lose { background: #fdecec; }
+.res-main { display: grid; gap: 1px; min-width: 0; }
+.res-main strong, .res-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.res-scorers { color: var(--text); opacity: .8; }
+.result-list .score { font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
+.rank-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
+.rank-list li { display: grid; grid-template-columns: 22px minmax(84px, 1.1fr) 1.4fr auto; align-items: center; gap: 10px; min-height: 40px; }
+.rank-list .rk { font-weight: 800; color: var(--muted); text-align: center; }
+.rank-list li.top .rk { color: var(--accent); }
+.rank-list .pn b { color: var(--accent); margin-right: 2px; }
+.rank-list .pn { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-list .rbar { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.rank-list .rbar i { display: block; height: 100%; background: var(--accent); border-radius: inherit; opacity: .55; }
+.rank-list li.top .rbar i { opacity: 1; }
+.rank-list .rv { font-size: 18px; text-align: right; min-width: 44px; }
+.rank-list .rv small { font-size: 11px; color: var(--muted); margin-left: 2px; font-weight: 700; }
+.dash .card > .segmented { margin: 0 0 8px; }
+.social { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.soc { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 16px; border-radius: var(--r); color: #fff; text-decoration: none; box-shadow: 0 1px 2px rgba(16, 24, 40, .06); }
+.soc span { display: grid; min-width: 0; }
+.soc strong { font-size: 15px; }
+.soc small { opacity: .9; overflow: hidden; text-overflow: ellipsis; }
+.soc.ig { background: linear-gradient(135deg, #7c3aed, #db2777 55%, #f59e0b); }
+.soc.yt { background: linear-gradient(135deg, #e11d1d, #b91c1c); }
+.yt-embed { grid-column: 1 / -1; position: relative; aspect-ratio: 16 / 9; border-radius: var(--r); overflow: hidden; background: #000; }
+.yt-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+@media (max-width: 380px) { .social { grid-template-columns: 1fr; } .kpi-grid b { font-size: 22px; } }
+@media (min-width: 900px) {
+  .shell-main.wide { max-width: 1040px; margin-left: max(96px, calc(50vw - 520px + 48px)); }
+}
+.dash-cols { display: grid; gap: 12px; }
+@media (min-width: 900px) {
+  /* two balanced columns without gaps, whatever the card heights */
+  .dash-cols { display: block; column-count: 2; column-gap: 12px; }
+  .dash-cols > * { break-inside: avoid; margin-bottom: 12px; }
+}

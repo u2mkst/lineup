@@ -54,9 +54,11 @@ function TeamApp({ route }: { route: Route }) {
     }
   })();
   const parent: Partial<Record<Route['name'], TabId>> = { event: 'schedule', roster: 'more', board: 'more', post: 'more', admin: 'more', me: 'more' };
-  return <Shell active={TAB_OF[route.name] ?? parent[route.name] ?? 'home'}>{page}</Shell>;
+  return <Shell active={TAB_OF[route.name] ?? parent[route.name] ?? 'home'} wide={route.name === 'home'}>{page}</Shell>;
 }
 
+const SKIP_KEY = 'chukgubang:skip-link';
+const readSkip = (id: string) => { try { return localStorage.getItem(SKIP_KEY) === id; } catch { return false; } };
 const INSTALL_KEY = 'chukgubang:install-seen';
 const installSeen = () => { try { return localStorage.getItem(INSTALL_KEY) === '1'; } catch { return true; } };
 const markInstallSeen = () => { try { localStorage.setItem(INSTALL_KEY, '1'); } catch { /* ignore */ } };
@@ -73,7 +75,10 @@ function TeamGate({ route }: { route: Route }) {
   const user = useAuth(s => s.user);
   const member = useAuth(s => s.member);
   const isAdmin = useAuth(s => s.isAdmin);
-  const [skipped, setSkipped] = useState(() => { try { return localStorage.getItem('chukgubang:skip-link') === user?.id; } catch { return false; } });
+  // The choice not to link a player is remembered per account on this device. It is read while rendering,
+  // because the account is not known yet on the very first render after a reload.
+  const [, setSkipTick] = useState(0);
+  const skipped = !!user && readSkip(user.id);
   const [tipDone, setTipDone] = useState(installSeen);
 
   capture(route);
@@ -95,7 +100,7 @@ function TeamGate({ route }: { route: Route }) {
   if (stray) return <Splash />;
   if (route.name === 'setup') return <AdminSetup onDone={() => { markInstallSeen(); setTipDone(true); go(paths.home); }} />;
   if (!member.playerId && !skipped && route.name !== 'me') {
-    return <LinkPlayerScreen onSkip={() => { try { localStorage.setItem('chukgubang:skip-link', user.id); } catch { /* ignore */ } setSkipped(true); }} />;
+    return <LinkPlayerScreen onSkip={() => { try { localStorage.setItem(SKIP_KEY, user.id); } catch { /* ignore */ } setSkipTick(n => n + 1); }} />;
   }
   if (!tipDone && route.name === 'home' && shouldSuggestInstall()) {
     return <InstallGuide final onDone={() => { markInstallSeen(); setTipDone(true); }} />;

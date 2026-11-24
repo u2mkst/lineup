@@ -52,3 +52,7 @@ export const IconChevronRight = (p: P) => base(<path d="M9 6l6 6-6 6" />, p);
 export const IconMapPin = (p: P) => base(<><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" /></>, p);
 export const IconClock = (p: P) => base(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>, p);
 export const IconKey = (p: P) => base(<><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M16 7l3 3" /></>, p);
+
+export const IconInstagram = (p: P) => base(<><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.2" cy="6.8" r="1" fill="currentColor" stroke="none" /></>, p);
+export const IconYoutube = (p: P) => base(<><rect x="2.5" y="5.5" width="19" height="13" rx="4" /><path d="M10 9.2l5 2.8-5 2.8z" fill="currentColor" /></>, p);
+export const IconExternal = (p: P) => base(<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />, p);

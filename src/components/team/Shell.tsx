@@ -13,10 +13,10 @@ const TABS: { id: TabId; label: string; href: string; icon: ReactNode }[] = [
 ];
 
 /** Page frame with the bottom tab bar (a side rail on wide screens). */
-export function Shell({ active, children }: { active: TabId; children: ReactNode }) {
+export function Shell({ active, wide, children }: { active: TabId; wide?: boolean; children: ReactNode }) {
   return (
     <div className="shell">
-      <main className="shell-main">{children}</main>
+      <main className={`shell-main${wide ? ' wide' : ''}`}>{children}</main>
       <nav className="tabbar" aria-label="주요 메뉴">
         {TABS.map(t => (
           <a key={t.id} href={t.href} className={`tab${active === t.id ? ' on' : ''}`} aria-current={active === t.id ? 'page' : undefined}>
