@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../lib/auth';
 import { inviteMessage } from '../../lib/pending';
-import { go, paths } from '../../lib/route';
 import { fetchJoinCode, fetchMembers, regenerateJoinCode, removeMember, renameTeam, setMemberPlayer, setMemberRole } from '../../lib/cloud';
 import { useStore } from '../../lib/store';
 import { toast } from '../../lib/toast';
@@ -10,9 +9,9 @@ import type { Member } from '../../types';
 import { IconKey } from '../Icons';
 import { Menu } from '../Menu';
 import { Sheet } from '../Sheet';
-import { Empty, Loading, PageHeader } from '../ui';
+import { Empty, Loading } from '../ui';
 
-function JoinCodeCard() {
+export function JoinCodeCard() {
   const code = useAsync(fetchJoinCode, []);
   const teamName = useAuth(s => s.teamName);
   const [busy, setBusy] = useState(false);
@@ -63,13 +62,35 @@ function LinkSheet({ member, taken, onClose, onDone }: { member: Member; taken: 
   );
 }
 
-export function AdminPage() {
+/** Club name: shown in the app header and in invite messages. */
+export function TeamNameCard() {
   const teamName = useAuth(s => s.teamName);
+  const refresh = useAuth(s => s.refresh);
+  const [name, setName] = useState(teamName);
+  const [busy, setBusy] = useState(false);
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setBusy(true);
+    try { await renameTeam(name); await refresh(); toast('구단 이름을 바꿨어요'); } catch (err) { toast((err as Error).message, 'error'); } finally { setBusy(false); }
+  };
+  return (
+    <section className="card">
+      <div className="card-title"><h3>구단 이름</h3></div>
+      <form className="field-row" onSubmit={e => void save(e)}>
+        <input className="text-in" value={name} maxLength={30} onChange={e => setName(e.target.value)} aria-label="구단 이름" />
+        <button className="btn primary" type="submit" disabled={busy || !name.trim() || name.trim() === teamName}>저장</button>
+      </form>
+    </section>
+  );
+}
+
+/** Team members: role, linked player profile, removal. */
+export function MembersCard({ onLoaded }: { onLoaded?: (members: Member[]) => void }) {
   const me = useAuth(s => s.member);
   const refresh = useAuth(s => s.refresh);
   const roster = useStore(s => s.roster);
-  const members = useAsync(fetchMembers, []);
-  const [name, setName] = useState(teamName);
+  const members = useAsync(async () => { const m = await fetchMembers(); onLoaded?.(m); return m; }, []);
   const [linking, setLinking] = useState<Member | null>(null);
 
   const label = (m: Member, i: number) => roster.find(p => p.id === m.playerId)?.name ?? (m.nickname || `팀원 ${i + 1}`);
@@ -80,23 +101,6 @@ export function AdminPage() {
 
   return (
     <>
-      <PageHeader title="구단 관리" back="#/more" />
-      <section className="card">
-        <div className="card-title"><h3>구단 이름</h3></div>
-        <form className="field-row" onSubmit={e => { e.preventDefault(); if (name.trim()) void run(() => renameTeam(name), '구단 이름을 바꿨어요'); }}>
-          <input className="text-in" value={name} maxLength={30} onChange={e => setName(e.target.value)} aria-label="구단 이름" />
-          <button className="btn primary" type="submit" disabled={!name.trim() || name.trim() === teamName}>저장</button>
-        </form>
-      </section>
-
-      <JoinCodeCard />
-
-      <section className="card">
-        <div className="card-title"><h3>설정 마법사</h3></div>
-        <p className="hint">구단 이름, 선수 등록, 첫 일정, 팀원 초대를 한 화면씩 차례로 다시 진행해요.</p>
-        <button className="btn ghost sm" onClick={() => go(paths.setup())}>마법사 열기</button>
-      </section>
-
       <section className="card">
         <div className="card-title"><h3>팀원 {members.data ? members.data.length : ''}</h3></div>
         {members.loading && !members.data && <Loading />}

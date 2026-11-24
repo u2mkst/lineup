@@ -696,3 +696,55 @@ body:has(.sheet-backdrop) .toaster { bottom: auto; top: calc(14px + env(safe-are
   .dash-cols { display: block; column-count: 2; column-gap: 12px; }
   .dash-cols > * { break-inside: avoid; margin-bottom: 12px; }
 }
+
+/* ───────── admin console (/admin) ───────── */
+.adm { min-height: 100vh; display: grid; grid-template-columns: 248px minmax(0, 1fr); background: var(--bg); }
+.adm-side { position: sticky; top: 0; align-self: start; height: 100vh; display: flex; flex-direction: column; gap: 18px; padding: 22px 14px; background: var(--surface); border-right: 1px solid var(--line); }
+.adm-brand { display: flex; align-items: center; gap: 8px; padding: 0 8px; font-size: 17px; }
+.adm-brand b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-brand em { font-style: normal; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: var(--text); color: var(--bg); }
+.adm-side nav { display: grid; gap: 2px; }
+.adm-side nav a { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border-radius: var(--r-sm); color: var(--muted); font-weight: 700; text-decoration: none; }
+.adm-side nav a:hover { background: var(--surface-2); }
+.adm-side nav a.on { background: var(--accent-soft); color: var(--accent); }
+.adm-side-foot { margin-top: auto; display: grid; gap: 6px; padding: 0 8px; font-size: 13px; }
+.adm-side-foot a { color: var(--muted); text-decoration: none; font-weight: 700; }
+.adm-side-foot .link { text-align: left; padding: 0; }
+.adm-main { width: 100%; max-width: 1000px; padding: 26px 28px 72px; display: grid; gap: 14px; align-content: start; }
+.adm-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 2px; }
+.adm-head h2 { font-size: 24px; letter-spacing: -.03em; }
+.adm-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.adm-tile { display: grid; gap: 2px; text-align: left; padding: 14px 16px; background: var(--surface); border: 0; border-radius: var(--r); box-shadow: 0 1px 2px rgba(16, 24, 40, .05); }
+.adm-tile small { color: var(--muted); font-weight: 700; font-size: 12.5px; }
+.adm-tile b { font-size: 30px; letter-spacing: -.03em; line-height: 1.15; }
+.adm-tile b i { font-style: normal; font-size: 15px; color: var(--muted); }
+.adm-tile span { color: var(--muted); font-size: 12.5px; }
+.adm-tile:hover { outline: 2px solid var(--accent-soft); }
+.todo-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.todo-list li + li { border-top: 1px solid var(--line); }
+.todo-list button { width: 100%; display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 10px; min-height: 52px; background: transparent; border: 0; text-align: left; }
+.todo-list b { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: #fff4de; color: #9a6200; font-size: 14px; }
+.todo-list i { font-style: normal; color: var(--muted); font-size: 20px; }
+.adm-wide { overflow: hidden; }
+.adm-events { display: grid; gap: 10px; }
+.adm-event { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0; }
+.adm-ev-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.adm-ev-main strong { font-size: 16px; }
+.adm-score { font-weight: 800; background: var(--surface-2); border-radius: 99px; padding: 2px 10px; }
+.kind.warnk { background: #e69500; }
+.adm-links { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+@media (max-width: 899px) {
+  .adm { grid-template-columns: minmax(0, 1fr); }
+  .adm-main, .adm-main > * { min-width: 0; }
+  .adm-main .join-code { font-size: 22px; letter-spacing: .08em; }
+  .adm-brand { min-width: 0; }
+  .adm-side-foot a, .adm-side-foot .link { font-size: 12px; white-space: nowrap; }
+  .adm-side { position: sticky; z-index: 30; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px 0; border-right: 0; border-bottom: 1px solid var(--line); }
+  .adm-brand { flex: 1; padding: 0; }
+  .adm-side nav { order: 3; width: 100%; display: flex; overflow-x: auto; gap: 4px; padding-bottom: 8px; scrollbar-width: none; }
+  .adm-side nav a { flex: none; min-height: 38px; padding: 0 12px; white-space: nowrap; }
+  .adm-side nav a svg { display: none; }
+  .adm-side-foot { margin: 0; display: flex; gap: 12px; align-items: center; }
+  .adm-main { padding: 16px 14px 64px; }
+  .adm-tiles { grid-template-columns: repeat(2, 1fr); }
+}

@@ -11,7 +11,7 @@ const GROUPS: { pos: Pos; label: string }[] = [
 ];
 
 /** Admin only: the coach's private 1–10 ratings. Saved a moment after each change. */
-export function RatingsSheet({ onClose }: { onClose: () => void }) {
+export function RatingsBody() {
   const roster = useStore(s => s.roster);
   const { data, loaded, load, set, persist } = useRatings();
   const [open, setOpen] = useState<string | null>(null);
@@ -37,7 +37,7 @@ export function RatingsSheet({ onClose }: { onClose: () => void }) {
   const rated = roster.filter(p => data[p.id]).length;
 
   return (
-    <Sheet title="선수 능력치 (비공개)" onClose={onClose}>
+    <>
       <p className="hint">🔒 감독(관리자)만 볼 수 있어요. 선수들에게는 보이지 않고, 전술이나 공유 링크에도 들어가지 않아요. 빠른 선발이 이 점수로 최적의 11명을 골라요.</p>
       {!loaded && !failed && <p className="muted small" role="status">불러오는 중…</p>}
       {failed && <p className="error" role="alert">능력치를 불러오지 못했어요. 관리자 계정인지 확인해 주세요.</p>}
@@ -80,6 +80,10 @@ export function RatingsSheet({ onClose }: { onClose: () => void }) {
           </div>
         );
       })}
-    </Sheet>
+    </>
   );
+}
+
+export function RatingsSheet({ onClose }: { onClose: () => void }) {
+  return <Sheet title="선수 능력치 (비공개)" onClose={onClose}><RatingsBody /></Sheet>;
 }

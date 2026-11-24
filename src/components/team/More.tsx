@@ -13,7 +13,7 @@ export function MorePage() {
     { href: paths.board, icon: <IconMessage />, label: '게시판', sub: '공지와 팀 이야기' },
     { href: paths.tactics, icon: <IconBoardTactic />, label: '전술 보드', sub: '선발 라인업과 전술 애니메이션' },
     { href: paths.me, icon: <IconUser />, label: '내 프로필', sub: '선수 프로필 연결, 닉네임, 로그아웃' },
-    ...(isAdmin ? [{ href: paths.admin, icon: <IconKey />, label: '구단 관리', sub: '합류코드, 팀원, 권한' }] : []),
+    ...(isAdmin ? [{ href: '/admin', icon: <IconKey />, label: '관리자 페이지', sub: '팀원·선수·능력치·일정·기록·설정' }] : []),
   ];
   return (
     <>

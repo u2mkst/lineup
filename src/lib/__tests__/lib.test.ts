@@ -547,3 +547,35 @@ describe('social links', () => {
     expect(socialLinks({ VITE_YOUTUBE_CHANNEL_ID: 'nope' }).youtube.uploadsEmbed).toBeNull();
   });
 });
+
+describe('admin to-do list', () => {
+  const NOW = new Date('2026-11-24T12:00:00Z').getTime();
+  const m = (id: string, kickoff: string, extra: Record<string, unknown> = {}) => ({ id, kind: 'match', title: id, kickoff, status: 'scheduled', ...extra }) as never;
+  const roster = [{ id: 'a' }, { id: 'b' }, { id: 'c' }] as never[];
+
+  it('lists what needs attention, most urgent first', async () => {
+    const { adminTodos } = await import('../adminTodos');
+    const todos = adminTodos({
+      members: [{ userId: 'u1', role: 'player', playerId: null }, { userId: 'u2', role: 'admin', playerId: null }, { userId: 'u3', role: 'player', playerId: 'a' }] as never[],
+      roster,
+      matches: [m('past', '2026-11-20T10:00:00Z'), m('next', '2026-11-28T10:00:00Z')],
+      rated: new Set(['a']),
+      nextVotes: { a: 'yes' },
+      now: NOW,
+    });
+    expect(todos.map(t => [t.id, t.count, t.section])).toEqual([['records', 1, 'events'], ['silent', 2, 'events'], ['unlinked', 1, 'members'], ['unrated', 2, 'ratings']]);
+  });
+
+  it('is empty when everything is in order and asks for players when there are none', async () => {
+    const { adminTodos } = await import('../adminTodos');
+    expect(adminTodos({ members: [], roster, matches: [], rated: new Set(['a', 'b', 'c']), nextVotes: null, now: NOW })).toEqual([]);
+    expect(adminTodos({ members: [], roster: [], matches: [], rated: null, nextVotes: null, now: NOW })[0].id).toBe('no-players');
+  });
+
+  it('does not nag about cancelled or finished matches, or friendlies that are not matches', async () => {
+    const { needsRecord, nextEvent } = await import('../adminTodos');
+    const ms = [m('c', '2026-11-20T10:00:00Z', { status: 'cancelled' }), m('f', '2026-11-20T10:00:00Z', { status: 'finished' }), m('p', '2026-11-20T10:00:00Z', { kind: 'practice' })];
+    expect(needsRecord(ms, NOW)).toEqual([]);
+    expect(nextEvent(ms, NOW)).toBeUndefined();
+  });
+});

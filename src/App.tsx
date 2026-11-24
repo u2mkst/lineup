@@ -3,7 +3,7 @@ import { Editor } from './components/Editor';
 import { Home } from './components/Home';
 import { PublicView } from './components/PublicView';
 import { SharedImport } from './components/SharedImport';
-import { AdminPage } from './components/team/Admin';
+import { AdminApp, isAdminPath } from './components/admin/AdminApp';
 import { JoinScreen, LinkPlayerScreen, LoginScreen, Splash } from './components/team/AuthScreens';
 import { AdminSetup, InstallGuide } from './components/team/Onboarding';
 import { BoardPage, PostPage } from './components/team/Board';
@@ -29,6 +29,12 @@ function LocalApp({ route }: { route: Route }) {
   return <Home onOpen={id => go(paths.editor(id))} />;
 }
 
+/** The old in-app #/admin address now lives at /admin. */
+function GoAdmin() {
+  useEffect(() => { location.replace('/admin'); }, []);
+  return <Splash />;
+}
+
 const TAB_OF: Partial<Record<Route['name'], TabId>> = { home: 'home', schedule: 'schedule', records: 'records', tactics: 'tactics', more: 'more' };
 
 function TeamApp({ route }: { route: Route }) {
@@ -48,7 +54,7 @@ function TeamApp({ route }: { route: Route }) {
       case 'roster': return <RosterPage />;
       case 'board': return <BoardPage />;
       case 'post': return <PostPage key={route.id} id={route.id} />;
-      case 'admin': return <AdminPage />;
+      case 'admin': return <GoAdmin />;
       case 'me': return <MePage />;
       default: return <HomeDashboard />;
     }
@@ -110,5 +116,6 @@ function TeamGate({ route }: { route: Route }) {
 
 export default function App() {
   const route = useRoute();
+  if (isAdminPath()) return <AdminApp />;
   return cloudEnabled ? <TeamGate route={route} /> : <LocalApp route={route} />;
 }

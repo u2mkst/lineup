@@ -10,7 +10,7 @@ import { Sheet } from './Sheet';
 const POS: Pos[] = ['GK', 'DF', 'MF', 'FW'];
 
 /** Admin-only roster management: add / edit / delete players and swap shirt numbers. */
-export function AdminRoster({ onClose }: { onClose: () => void }) {
+export function AdminRosterBody() {
   const roster = useStore(s => s.roster);
   const [draft, setDraft] = useState({ number: '', name: '', pos: 'MF' as Pos });
   const [swapMode, setSwapMode] = useState(false);
@@ -61,7 +61,7 @@ export function AdminRoster({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Sheet title="선수 명단 관리" onClose={onClose}>
+    <>
       <div className="admin-add">
         <input placeholder="번호" inputMode="numeric" maxLength={3} value={draft.number} aria-label="새 선수 번호"
           onChange={e => setDraft({ ...draft, number: e.target.value })} />
@@ -159,6 +159,10 @@ export function AdminRoster({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       <p className="hint">번호와 이름은 입력 후 다른 곳을 누르면 저장돼요. 등번호는 겹칠 수 없어서, 서로 바꿀 땐 "번호 교체"를 쓰세요.</p>
-    </Sheet>
+    </>
   );
+}
+
+export function AdminRoster({ onClose }: { onClose: () => void }) {
+  return <Sheet title="선수 명단 관리" onClose={onClose}><AdminRosterBody /></Sheet>;
 }
