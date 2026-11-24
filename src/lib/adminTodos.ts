@@ -1,6 +1,6 @@
 import type { Attend, Match, Member, Player } from '../types';
 
-export type AdminSection = 'overview' | 'members' | 'players' | 'ratings' | 'events' | 'settings';
+export type AdminSection = 'overview' | 'members' | 'players' | 'codes' | 'ratings' | 'events' | 'settings';
 
 export interface Todo {
   id: string;
@@ -17,6 +17,8 @@ export interface TodoInput {
   rated: Set<string> | null;
   /** votes for the next upcoming event (null = none / not loaded) */
   nextVotes: Record<string, Attend> | null;
+  /** players who have not signed up yet (null = not loaded) */
+  unjoined?: number | null;
   now?: number;
 }
 
@@ -33,7 +35,7 @@ export function needsRecord(matches: Match[], now = Date.now()): Match[] {
 }
 
 /** What the admin should look at next, most important first. Empty when everything is in order. */
-export function adminTodos({ members, roster, matches, rated, nextVotes, now = Date.now() }: TodoInput): Todo[] {
+export function adminTodos({ members, roster, matches, rated, nextVotes, unjoined = null, now = Date.now() }: TodoInput): Todo[] {
   const todos: Todo[] = [];
   if (roster.length === 0) todos.push({ id: 'no-players', text: '선수를 등록해 주세요', count: 1, section: 'players' });
 
@@ -45,6 +47,8 @@ export function adminTodos({ members, roster, matches, rated, nextVotes, now = D
     const silent = roster.filter(p => !nextVotes[p.id]).length;
     if (silent > 0) todos.push({ id: 'silent', text: `“${upcoming.title}”에 아직 투표하지 않은 선수`, count: silent, section: 'events' });
   }
+
+  if (unjoined) todos.push({ id: 'unjoined', text: '아직 가입하지 않은 선수 (개인 코드를 보내 주세요)', count: unjoined, section: 'codes' });
 
   const unlinked = members.filter(m => !m.playerId && m.role !== 'admin').length;
   if (unlinked) todos.push({ id: 'unlinked', text: '선수 프로필이 연결되지 않은 팀원', count: unlinked, section: 'members' });

@@ -2,14 +2,15 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from '../../lib/auth';
 import type { AdminSection } from '../../lib/adminTodos';
 import { cloudEnabled } from '../../lib/supabase';
-import { IconCalendar, IconChart, IconKey, IconLogo, IconSettings, IconUser, IconUsers } from '../Icons';
+import { IconCalendar, IconChart, IconKey, IconLink, IconLogo, IconSettings, IconUser, IconUsers } from '../Icons';
 import { JoinScreen, LoginScreen, Splash } from '../team/AuthScreens';
-import { EventsSection, MembersSection, OverviewSection, PlayersSection, RatingsSection, SettingsSection } from './Sections';
+import { CodesSection, EventsSection, MembersSection, OverviewSection, PlayersSection, RatingsSection, SettingsSection } from './Sections';
 
 const NAV: { id: AdminSection; label: string; icon: ReactNode }[] = [
   { id: 'overview', label: '개요', icon: <IconChart /> },
   { id: 'members', label: '팀원·권한', icon: <IconUsers /> },
   { id: 'players', label: '선수 관리', icon: <IconUser /> },
+  { id: 'codes', label: '선수 코드', icon: <IconLink /> },
   { id: 'ratings', label: '능력치 (비공개)', icon: <IconKey /> },
   { id: 'events', label: '일정·기록', icon: <IconCalendar /> },
   { id: 'settings', label: '구단 설정', icon: <IconSettings /> },
@@ -74,6 +75,7 @@ export function AdminApp() {
     switch (section) {
       case 'members': return <MembersSection />;
       case 'players': return <PlayersSection />;
+      case 'codes': return <CodesSection />;
       case 'ratings': return <RatingsSection />;
       case 'events': return <EventsSection />;
       case 'settings': return <SettingsSection />;

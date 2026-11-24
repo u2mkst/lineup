@@ -16,6 +16,7 @@ export type Route =
   | { name: 'admin' }
   | { name: 'me' }
   | { name: 'invite'; code: string }
+  | { name: 'code'; code: string }
   | { name: 'setup'; code: string };
 
 const seg = (s: string) => { try { return decodeURIComponent(s); } catch { return s; } };
@@ -37,6 +38,7 @@ export function parseRoute(hash = location.hash): Route {
     case 'admin': return { name: 'admin' };
     case 'me': return { name: 'me' };
     case 'join': return arg ? { name: 'invite', code: id.toUpperCase() } : { name: 'home' };
+    case 'code': return arg ? { name: 'code', code: id.toUpperCase() } : { name: 'home' };
     case 'setup': return { name: 'setup', code: id.toUpperCase() };
     default: return { name: 'home' };
   }
@@ -56,6 +58,7 @@ export const paths = {
   post: (id: string) => `#/board/${encodeURIComponent(id)}`,
   admin: '#/admin',
   me: '#/me',
+  code: (code: string) => `#/code/${encodeURIComponent(code)}`,
   invite: (code: string) => `#/join/${encodeURIComponent(code)}`,
   setup: (code = '') => (code ? `#/setup/${encodeURIComponent(code)}` : '#/setup'),
 };

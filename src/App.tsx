@@ -72,6 +72,7 @@ const markInstallSeen = () => { try { localStorage.setItem(INSTALL_KEY, '1'); } 
 /** Remember an invite / setup link so it survives e-mail confirmation and page reloads. */
 function capture(route: Route) {
   if (route.name === 'invite' && route.code) savePending({ kind: 'invite', code: route.code });
+  if (route.name === 'code' && route.code) savePending({ kind: 'player', code: route.code });
   if (route.name === 'setup' && route.code) savePending({ kind: 'setup', code: route.code });
 }
 
@@ -90,10 +91,10 @@ function TeamGate({ route }: { route: Route }) {
   capture(route);
 
   // Signing out must not leave the next person on the previous person's page.
-  useEffect(() => { if (ready && !user && location.hash && location.hash !== '#/' && route.name !== 'invite' && route.name !== 'setup') go(paths.home); }, [ready, user, route.name]);
+  useEffect(() => { if (ready && !user && location.hash && location.hash !== '#/' && route.name !== 'invite' && route.name !== 'setup' && route.name !== 'code') go(paths.home); }, [ready, user, route.name]);
 
   // Members have no use for a join link; non-admins no use for the setup wizard.
-  const stray = !!member && (route.name === 'invite' || (route.name === 'setup' && !isAdmin));
+  const stray = !!member && (route.name === 'invite' || route.name === 'code' || (route.name === 'setup' && !isAdmin));
   useEffect(() => {
     if (!member) return;
     if (readPending()) clearPending();

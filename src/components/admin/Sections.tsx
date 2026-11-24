@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../lib/auth';
-import { deleteMatch, fetchAttendance, fetchMembers } from '../../lib/cloud';
+import { deleteMatch, fetchAttendance, fetchMembers, fetchPlayerCodes, reissuePlayerCode } from '../../lib/cloud';
+import { playerLink, playerMessage } from '../../lib/pending';
 import { adminTodos, needsRecord, nextEvent, type AdminSection } from '../../lib/adminTodos';
 import { KIND_COLOR, KIND_LABEL, formatStamp } from '../../lib/matches';
 import { socialLinks } from '../../lib/social';
@@ -37,16 +38,22 @@ export function OverviewSection() {
   const { matches, loaded, load } = useTeamData();
   const ratings = useRatings();
   const members = useAsync(fetchMembers, []);
+  const codes = useAsync(fetchPlayerCodes, []);
   const next = useMemo(() => nextEvent(matches), [matches]);
   const votes = useAsync(() => (next ? fetchAttendance(next.id) : Promise.resolve(null as Record<string, Attend> | null)), [next?.id]);
   useEffect(() => { void load(); ratings.load().catch(() => undefined); }, [load]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const ready = loaded && !!members.data && ratings.loaded;
+  const ready = loaded && !!members.data && ratings.loaded && !!codes.data;
+  const unjoined = useMemo(() => {
+    if (!codes.data || !members.data) return null;
+    const linked = new Set(members.data.map(m => m.playerId).filter(Boolean));
+    return roster.filter(p => !codes.data![p.id]?.claimed && !linked.has(p.id)).length;
+  }, [codes.data, members.data, roster]);
   const todos = useMemo(() => adminTodos({
     members: members.data ?? [], roster, matches,
     rated: ratings.loaded ? new Set(Object.keys(ratings.data)) : null,
-    nextVotes: votes.data ?? null,
-  }), [members.data, roster, matches, ratings.loaded, ratings.data, votes.data]);
+    nextVotes: votes.data ?? null, unjoined,
+  }), [members.data, roster, matches, ratings.loaded, ratings.data, votes.data, unjoined]);
   const upcoming = matches.filter(m => m.status === 'scheduled' && new Date(m.kickoff).getTime() >= Date.now()).length;
   const admins = (members.data ?? []).filter(m => m.role === 'admin').length;
 
@@ -94,6 +101,60 @@ export function PlayersSection() {
         right={<div className="btn-row"><button className="btn sm" onClick={() => setAdding('many')}>여러 명 한꺼번에</button><button className="btn sm primary" onClick={() => setAdding('one')}><IconPlus width={15} height={15} /> 선수 추가</button></div>} />
       <section className="card adm-wide"><AdminRosterBody /></section>
       {adding && <AddPlayersSheet start={adding} onClose={() => setAdding(null)} />}
+    </>
+  );
+}
+
+export function CodesSection() {
+  const roster = useStore(s => s.roster);
+  const teamName = useAuth(s => s.teamName);
+  const codes = useAsync(fetchPlayerCodes, []);
+  const [busy, setBusy] = useState<string | null>(null);
+  const rows = useMemo(() => [...roster].sort((a, b) => Number(a.number) - Number(b.number)), [roster]);
+  const joined = rows.filter(p => codes.data?.[p.id]?.claimed).length;
+
+  const copy = async (text: string, done: string) => { try { await navigator.clipboard.writeText(text); toast(done); } catch { toast('복사하지 못했어요', 'error'); } };
+  const send = async (name: string, code: string) => {
+    const text = playerMessage(teamName, name, code);
+    try {
+      if (navigator.share) await navigator.share({ text });
+      else await copy(text, `${name} 선수에게 보낼 안내를 복사했어요`);
+    } catch (e) { if ((e as DOMException).name !== 'AbortError') toast('공유하지 못했어요', 'error'); }
+  };
+  const reissue = async (id: string, name: string, claimed: boolean) => {
+    const msg = claimed ? `${name} 선수는 이미 가입했어요. 새 코드를 만들면 그 코드로 비밀번호를 다시 정할 수 있어요. 발급할까요?` : `${name} 선수의 코드를 새로 만들까요? 이전 코드는 쓸 수 없게 돼요.`;
+    if (!confirm(msg)) return;
+    setBusy(id);
+    try { await reissuePlayerCode(id); await codes.reload(); toast('새 코드를 만들었어요'); } catch (e) { toast((e as Error).message, 'error'); } finally { setBusy(null); }
+  };
+
+  return (
+    <>
+      <Heading title="선수 코드" sub="선수마다 개인 코드가 있어요. 코드를 입력하고 아이디·비밀번호를 정하면 그 선수로 가입돼요"
+        right={codes.data && <span className="adm-score">가입 {joined}/{rows.length}</span>} />
+      <p className="warn" role="note">코드는 <b>해당 선수에게만</b> 따로 보내세요. 단체방에 올리면 다른 사람이 그 선수 대신 가입할 수 있어요. 가입 후에는 이 기기에서 자동으로 로그인 상태가 유지돼요.</p>
+      {codes.loading && !codes.data && <Loading />}
+      {codes.error && !codes.data && <Empty title="코드를 불러오지 못했어요" action={<button className="btn sm" onClick={() => void codes.reload()}>다시 시도</button>} />}
+      {rows.length === 0 && <Empty title="선수가 없어요" hint="선수 관리에서 먼저 선수를 추가해 주세요." />}
+      <ul className="code-list">
+        {codes.data && rows.map(p => {
+          const c = codes.data![p.id];
+          const state = !c ? '코드 없음' : c.claimed && c.used ? `가입 완료${c.username ? ` · ${c.username}` : ''}` : c.claimed ? '비밀번호 재설정 대기' : '미가입';
+          const usable = c && !c.used;
+          return (
+            <li key={p.id} className="card code-row">
+              <div className="code-who"><b>{p.number}</b><strong>{p.name}</strong><em className={`code-state${c?.claimed && c.used ? ' done' : ''}`}>{state}</em></div>
+              {usable ? <output className="code-val" aria-label={`${p.name} 코드`}>{c.code}</output> : <span className="muted small code-val none">{c ? '사용 완료' : '–'}</span>}
+              <div className="btn-row">
+                {usable && <button className="btn sm primary" onClick={() => void send(p.name, c.code)}>보내기</button>}
+                {usable && <button className="btn sm ghost" onClick={() => void copy(c.code, '코드를 복사했어요')}>코드 복사</button>}
+                {usable && <button className="btn sm ghost" onClick={() => void copy(playerLink(c.code), '가입 링크를 복사했어요')}>링크 복사</button>}
+                <button className="btn sm ghost" disabled={busy === p.id} onClick={() => void reissue(p.id, p.name, !!c?.claimed)}>{c?.claimed ? '비밀번호 재설정 코드' : c ? '새 코드' : '코드 만들기'}</button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </>
   );
 }

@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import { create } from 'zustand';
-import { claimAdmin, fetchMyMember, fetchTeamName, joinTeam } from './cloud';
+import { claimAdmin, claimPlayerCode, fetchMyMember, fetchTeamName, joinTeam } from './cloud';
+import { loginEmail } from './playerId';
 import { confirmRedirect } from './pending';
 import { useRatings } from './ratingsStore';
 import { supabase } from './supabase';
@@ -18,7 +19,10 @@ interface AuthState {
   init: () => Promise<void>;
   /** re-read membership and team name, e.g. after linking a player */
   refresh: () => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
+  /** `idOrEmail`: players use their ID, staff their e-mail */
+  signIn: (idOrEmail: string, password: string) => Promise<void>;
+  /** sign up with the personal code from the coach, then stay signed in */
+  claimPlayer: (b: { code: string; username?: string; password: string }) => Promise<void>;
   /** resolves `needsConfirm: true` when the project requires e-mail verification first */
   signUp: (email: string, password: string) => Promise<{ needsConfirm: boolean }>;
   signOut: () => Promise<void>;
@@ -32,7 +36,7 @@ interface AuthState {
 
 function message(e: { message?: string } | null): Error {
   const m = e?.message ?? '';
-  if (/invalid login credentials/i.test(m)) return new Error('이메일 또는 비밀번호가 맞지 않아요.');
+  if (/invalid login credentials/i.test(m)) return new Error('아이디(이메일) 또는 비밀번호가 맞지 않아요.');
   if (/email not confirmed/i.test(m)) return new Error('메일로 보낸 인증 링크를 먼저 눌러 주세요.');
   if (/already registered|already been registered/i.test(m)) return new Error('이미 가입된 이메일이에요. 로그인해 주세요.');
   if (/password/i.test(m) && /(least|short|weak)/i.test(m)) return new Error('비밀번호가 너무 짧거나 약해요. 8자 이상으로 입력해 주세요.');
@@ -72,9 +76,13 @@ export const useAuth = create<AuthState>((set, get) => {
       const { data } = await supabase!.auth.getSession();
       await apply(data.session);
     },
-    signIn: async (email, password) => {
-      const { error } = await supabase!.auth.signInWithPassword({ email: email.trim(), password });
+    signIn: async (idOrEmail, password) => {
+      const { error } = await supabase!.auth.signInWithPassword({ email: loginEmail(idOrEmail), password });
       if (error) throw message(error);
+    },
+    claimPlayer: async b => {
+      const { username } = await claimPlayerCode(b);
+      await get().signIn(username, b.password);
     },
     signUp: async (email, password) => {
       const { data, error } = await supabase!.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: confirmRedirect() } });

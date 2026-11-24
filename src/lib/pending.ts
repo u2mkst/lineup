@@ -3,7 +3,7 @@
  * leave to confirm their e-mail and come back without typing it.
  */
 export interface Pending {
-  kind: 'invite' | 'setup';
+  kind: 'invite' | 'setup' | 'player';
   code: string;
 }
 
@@ -12,7 +12,7 @@ const KEY = 'chukgubang:pending';
 export function readPending(): Pending | null {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Pending | null;
-    return v && (v.kind === 'invite' || v.kind === 'setup') && typeof v.code === 'string' && v.code ? v : null;
+    return v && (v.kind === 'invite' || v.kind === 'setup' || v.kind === 'player') && typeof v.code === 'string' && v.code ? v : null;
   } catch {
     return null;
   }
@@ -71,4 +71,14 @@ export function captureFromQuery() {
     const rest = q.toString();
     history.replaceState(null, '', `${location.pathname}${rest ? `?${rest}` : ''}${location.hash}`);
   } catch { /* ignore */ }
+}
+
+/** The link a coach sends one player: opening it starts the personal-code sign-up with the code filled in. */
+export function playerLink(code: string, origin = location.origin, pathname = location.pathname): string {
+  return `${origin}${pathname}#/code/${encodeURIComponent(code)}`;
+}
+
+/** What the coach sends to one player (never to the group: the code belongs to that player). */
+export function playerMessage(teamName: string, playerName: string, code: string): string {
+  return `[${teamName}] ${playerName}님 전용 가입 링크예요.\n아래 링크를 열고 아이디·비밀번호만 정하면 끝! 다음부터는 자동으로 로그인돼요.\n${playerLink(code)}\n(링크가 안 열리면 앱에서 \"선수 코드로 시작하기\"를 누르고 코드 ${code} 입력)`;
 }

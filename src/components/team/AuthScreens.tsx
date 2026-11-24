@@ -9,6 +9,7 @@ import { toast } from '../../lib/toast';
 import { useAsync } from '../../lib/useAsync';
 import { IconLogo } from '../Icons';
 import { Loading } from '../ui';
+import { CodeSignUp, IdLogin } from './PlayerAuth';
 import { NextButton, Wizard } from './Wizard';
 
 export function Splash() {
@@ -16,18 +17,18 @@ export function Splash() {
 }
 
 const invitedLine = (p: Pending | null) =>
-  p?.kind === 'setup' ? '구단을 만드는 링크로 들어오셨어요. 가입하면 바로 관리자로 시작해요.' : p ? '초대 링크로 들어오셨어요. 가입하면 바로 합류돼요.' : '팀원만 쓸 수 있는 우리 팀 전용 공간이에요.';
+  p?.kind === 'setup' ? '구단을 만드는 링크로 들어오셨어요. 가입하면 바로 관리자로 시작해요.' : p?.kind === 'invite' ? '초대 링크로 들어오셨어요. 가입하면 바로 합류돼요.' : '감독에게 받은 내 코드만 있으면 아이디와 비밀번호를 정하고 바로 시작해요.';
 
-type Phase = 'welcome' | 'email' | 'password' | 'sent';
+type Phase = 'email' | 'password' | 'sent';
 
-/** Sign in or sign up, one field per screen. */
-export function LoginScreen() {
+/** E-mail sign-up / sign-in (staff and the first admin), one field per screen. */
+function EmailAuth({ startMode, onExit }: { startMode: 'in' | 'up'; onExit: () => void }) {
   const signIn = useAuth(s => s.signIn);
   const signUp = useAuth(s => s.signUp);
   const resend = useAuth(s => s.resend);
   const pending = readPending();
-  const [mode, setMode] = useState<'in' | 'up'>('up');
-  const [phase, setPhase] = useState<Phase>('welcome');
+  const [mode, setMode] = useState<'in' | 'up'>(startMode);
+  const [phase, setPhase] = useState<Phase>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
@@ -35,7 +36,6 @@ export function LoginScreen() {
   const [error, setError] = useState('');
   const [unconfirmed, setUnconfirmed] = useState(false);
 
-  const begin = (m: 'in' | 'up') => { setMode(m); setError(''); setPhase('email'); };
   const check = checkPassword(password);
 
   const submitPassword = async () => {
@@ -57,23 +57,6 @@ export function LoginScreen() {
   const sendAgain = async () => {
     try { await resend(email); toast('인증 메일을 다시 보냈어요'); } catch (err) { toast((err as Error).message, 'error'); }
   };
-
-  if (phase === 'welcome') {
-    return (
-      <Wizard title="우리 팀 축구방" sub={invitedLine(pending)} onSubmit={() => begin('up')}
-        footer={<>
-          <NextButton>시작하기</NextButton>
-          <button type="button" className="btn ghost lg block" onClick={() => begin('in')}>이미 계정이 있어요</button>
-        </>}>
-        <div className="wiz-hero" aria-hidden><IconLogo width={120} height={150} /></div>
-        <ul className="wiz-points">
-          <li>일정 확인하고 참석 투표</li>
-          <li>경기 기록과 시즌 통계</li>
-          <li>라인업·전술 한눈에</li>
-        </ul>
-      </Wizard>
-    );
-  }
 
   if (phase === 'sent') {
     // The password is still in memory, so after the mail link is opened one tap signs in.
@@ -98,7 +81,7 @@ export function LoginScreen() {
   if (phase === 'email') {
     return (
       <Wizard step={1} total={2} title={mode === 'up' ? '이메일 주소를 알려주세요' : '가입한 이메일이 뭐예요?'} sub={mode === 'up' ? '로그인할 때 쓰는 주소예요.' : undefined}
-        onBack={() => setPhase('welcome')} onSubmit={() => { if (isEmail(email)) { setError(''); setPhase('password'); } }}
+        onBack={onExit} onSubmit={() => { if (isEmail(email)) { setError(''); setPhase('password'); } }}
         footer={<NextButton disabled={!isEmail(email)}>다음</NextButton>}>
         <input className="wiz-input" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} autoFocus
           placeholder="name@example.com" aria-label="이메일" value={email} onChange={e => setEmail(e.target.value)} />
@@ -131,6 +114,42 @@ export function LoginScreen() {
   );
 }
 
+type View = 'home' | 'code' | 'login' | 'email';
+
+/**
+ * First screen for visitors. Players start with the personal code from the coach (or the link carrying it);
+ * returning users log in with their ID; the first admin and staff use e-mail.
+ */
+export function LoginScreen() {
+  const pending = readPending();
+  const [view, setView] = useState<View>(pending?.kind === 'player' ? 'code' : 'home');
+  const [emailMode, setEmailMode] = useState<'in' | 'up'>('up');
+  const viaEmailLink = pending?.kind === 'setup' || pending?.kind === 'invite';
+
+  if (view === 'code') return <CodeSignUp initialCode={pending?.kind === 'player' ? pending.code : ''} onBack={() => { if (pending?.kind === 'player') clearPending(); setView('home'); }} />;
+  if (view === 'login') return <IdLogin onBack={() => setView('home')} />;
+  if (view === 'email') return <EmailAuth startMode={emailMode} onExit={() => setView('home')} />;
+
+  return (
+    <Wizard title="우리 팀 축구방" sub={invitedLine(pending)}
+      onSubmit={() => { if (viaEmailLink) { setEmailMode('up'); setView('email'); } else setView('code'); }}
+      footer={<>
+        <NextButton>{viaEmailLink ? '시작하기' : '선수 코드로 시작하기'}</NextButton>
+        <button type="button" className="btn ghost lg block" onClick={() => setView('login')}>{viaEmailLink ? '이미 계정이 있어요' : '로그인'}</button>
+        <button type="button" className="link wiz-switch" onClick={() => { if (viaEmailLink) setView('code'); else { setEmailMode('up'); setView('email'); } }}>
+          {viaEmailLink ? '선수 코드가 있어요' : '감독·스태프는 이메일로 가입'}
+        </button>
+      </>}>
+      <div className="wiz-hero" aria-hidden><IconLogo width={120} height={150} /></div>
+      <ul className="wiz-points">
+        <li>일정 확인하고 참석 투표</li>
+        <li>경기 기록과 시즌 통계</li>
+        <li>라인업·전술 한눈에</li>
+      </ul>
+    </Wizard>
+  );
+}
+
 /**
  * Signed in but not in the team yet. A remembered invite / setup link is used automatically;
  * otherwise the code is typed (one field).
@@ -140,7 +159,7 @@ export function JoinScreen() {
   const claim = useAuth(s => s.claim);
   const signOut = useAuth(s => s.signOut);
   const user = useAuth(s => s.user);
-  const pending = useRef(readPending()).current;
+  const pending = useRef((() => { const p = readPending(); return p && p.kind !== 'player' ? (p as { kind: 'invite' | 'setup'; code: string }) : null; })()).current;
   const [first, setFirst] = useState(pending?.kind === 'setup');
   const [code, setCode] = useState(pending?.code ?? '');
   const [busy, setBusy] = useState(!!pending);

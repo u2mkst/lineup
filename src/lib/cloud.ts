@@ -3,7 +3,7 @@ import type {
 } from '../types';
 import { RATING_KEYS } from '../types';
 import { sortRoster } from './roster';
-import { supabase } from './supabase';
+import { supabase, supabaseConfig } from './supabase';
 import { normalizePlayer, normalizeTactic } from './validate';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -443,3 +443,66 @@ export async function saveRating(playerId: string, r: Rating): Promise<void> {
   const { error } = await db().from('player_ratings').upsert(row, { onConflict: 'player_id' });
   if (error) throw explain(error);
 }
+
+// ───────── 선수별 가입 코드 ─────────
+
+export interface PlayerCode {
+  playerId: string;
+  code: string;
+  /** the ID the player chose (once signed up) */
+  username: string | null;
+  /** an account is linked to this player */
+  claimed: boolean;
+  /** the current code was already used (it cannot be used again) */
+  used: boolean;
+}
+
+/** Admin only: every player's personal sign-up code and whether they have joined. */
+export async function fetchPlayerCodes(): Promise<Record<string, PlayerCode>> {
+  const { data, error } = await db().from('player_codes').select('player_id, code, username, claimed_by, used_at');
+  if (error) throw explain(error);
+  return Object.fromEntries((data ?? []).map(r => [r.player_id as string, {
+    playerId: r.player_id as string, code: r.code as string, username: (r.username as string | null) ?? null, claimed: !!r.claimed_by, used: !!r.used_at,
+  }]));
+}
+
+/** Admin: a fresh code. For a player who already has an account it lets them set a new password. */
+export async function reissuePlayerCode(playerId: string): Promise<string> {
+  const { data, error } = await db().rpc('reissue_player_code', { pid: playerId });
+  if (error) throw explain(error);
+  return data as string;
+}
+
+const CLAIM_ERRORS: Record<string, string> = {
+  bad_code: '코드가 맞지 않아요. 감독에게 받은 코드를 다시 확인해 주세요.',
+  used: '이미 사용한 코드예요. 로그인해 주세요. 비밀번호를 잊었다면 감독에게 새 코드를 요청하세요.',
+  username_taken: '이미 쓰고 있는 아이디예요. 다른 아이디를 골라 주세요.',
+  invalid_username: '아이디는 영문 소문자·숫자·밑줄(_) 3~20자로 만들어 주세요.',
+  weak_password: '비밀번호는 6자 이상으로 정해 주세요.',
+};
+
+export interface CodeInfo { playerName: string; recovery: boolean; username: string | null }
+
+async function callClaim<T>(body: Record<string, unknown>): Promise<T> {
+  if (!supabaseConfig.url) throw new Error('서버가 연결되어 있지 않아요');
+  let res: Response;
+  try {
+    res = await fetch(`${supabaseConfig.url}/functions/v1/claim-player`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: supabaseConfig.key, Authorization: `Bearer ${supabaseConfig.key}` },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error('인터넷 연결을 확인해 주세요.');
+  }
+  const data = (await res.json().catch(() => ({}))) as { error?: string };
+  if (!res.ok) throw new Error(CLAIM_ERRORS[data.error ?? ''] ?? '잠시 후 다시 시도해 주세요.');
+  return data as T;
+}
+
+/** Whose code is this? (so the player can confirm it is really them before choosing a password) */
+export const checkPlayerCode = (code: string) => callClaim<CodeInfo>({ action: 'check', code });
+
+/** Creates the account (or resets the password of an existing one) and returns the ID to sign in with. */
+export const claimPlayerCode = (b: { code: string; username?: string; password: string }) =>
+  callClaim<{ ok: true; username: string }>({ action: 'claim', ...b });
