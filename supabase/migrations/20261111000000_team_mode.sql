@@ -150,7 +150,7 @@ begin
   end if;
   insert into public.members (user_id, role) values (uid, 'admin')
     on conflict (user_id) do update set role = 'admin';
-  update public.team_secret set admin_code = null;
+  update public.team_secret set admin_code = null where singleton;
   return 'admin';
 end;
 $$;
@@ -165,7 +165,7 @@ declare
   c text := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 10));
 begin
   if not public.is_admin() then raise exception 'admin only' using errcode = '42501'; end if;
-  update public.team_secret set join_code = c;
+  update public.team_secret set join_code = c where singleton;
   return c;
 end;
 $$;
