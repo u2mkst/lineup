@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../lib/auth';
-import { deleteMatch, fetchAttendance, fetchMembers, fetchPlayerCodes, reissuePlayerCode } from '../../lib/cloud';
+import { deleteMatch, fetchAttendance, fetchMembers, fetchPlayerCodes, fetchPublicPageFlag, reissuePlayerCode, setPublicPageFlag } from '../../lib/cloud';
 import { playerLink, playerMessage } from '../../lib/pending';
 import { adminTodos, needsRecord, nextEvent, type AdminSection } from '../../lib/adminTodos';
 import { KIND_COLOR, KIND_LABEL, formatStamp } from '../../lib/matches';
@@ -243,6 +243,38 @@ export function EventsSection() {
   );
 }
 
+/** Switch for /info and a plain list of what it does and does not show. */
+function PublicPageCard() {
+  const flag = useAsync(fetchPublicPageFlag, []);
+  const [busy, setBusy] = useState(false);
+  const url = `${location.origin}/info`;
+  const toggle = async (on: boolean) => {
+    const before = flag.data;
+    flag.setData(on); // flips at once; put back if saving fails
+    setBusy(true);
+    try { await setPublicPageFlag(on); toast(on ? '공개 페이지를 켰어요' : '공개 페이지를 껐어요'); } catch (e) { flag.setData(before ?? !on); toast((e as Error).message, 'error'); } finally { setBusy(false); }
+  };
+  return (
+    <section className="card">
+      <div className="card-title">
+        <h3>공개 페이지</h3>
+        <label className="switch">
+          <input type="checkbox" aria-label="공개 페이지 사용" checked={flag.data ?? true} disabled={busy || flag.data === undefined || flag.data === null} onChange={e => void toggle(e.target.checked)} />
+          <i />
+        </label>
+      </div>
+      <p className="hint">로그인 없이 누구나 볼 수 있는 페이지예요. 링크를 SNS 프로필 등에 올려도 돼요.</p>
+      <p><b className="small">보여주는 것</b> <span className="muted small">팀 이름, 올해 전적(경기·승률·득실점), 최근 경기 결과(스코어·상대·날짜·장소), 다가오는 경기(상대·날짜·장소), 인스타·유튜브 링크</span></p>
+      <p><b className="small">보여주지 않는 것</b> <span className="muted small">선수 이름과 기록, 참석 투표, 전술, 팀원, 게시판, 능력치, 일정 메모, 회식·연습 일정</span></p>
+      <div className="btn-row">
+        <a className="btn sm primary" href="/info" target="_blank" rel="noopener noreferrer">열어보기</a>
+        <button className="btn sm ghost" onClick={async () => { try { await navigator.clipboard.writeText(url); toast('링크를 복사했어요'); } catch { toast('복사하지 못했어요', 'error'); } }}>링크 복사</button>
+        <span className="muted small pub-url">{url}</span>
+      </div>
+    </section>
+  );
+}
+
 export function SettingsSection() {
   const user = useAuth(s => s.user);
   const signOut = useAuth(s => s.signOut);
@@ -252,6 +284,7 @@ export function SettingsSection() {
       <Heading title="구단 설정" />
       <TeamNameCard />
       <JoinCodeCard />
+      <PublicPageCard />
       <section className="card">
         <div className="card-title"><h3>설정 마법사</h3></div>
         <p className="hint">구단 이름, 선수 등록, 첫 일정, 팀원 초대를 한 화면씩 차례로 다시 진행해요.</p>

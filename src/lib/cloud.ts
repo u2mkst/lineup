@@ -1,5 +1,5 @@
 import type {
-  Attend, EventKind, EventStatus, Match, MatchStat, Member, Player, Pos, Post, PostComment, QuarterScore, Rating, Role, Tactic, TacticComment,
+  Attend, EventKind, EventStatus, Match, MatchStat, Member, Player, Pos, Post, PostComment, PublicOverview, QuarterScore, Rating, Role, Tactic, TacticComment,
 } from '../types';
 import { RATING_KEYS } from '../types';
 import { sortRoster } from './roster';
@@ -506,3 +506,38 @@ export const checkPlayerCode = (code: string) => callClaim<CodeInfo>({ action: '
 /** Creates the account (or resets the password of an existing one) and returns the ID to sign in with. */
 export const claimPlayerCode = (b: { code: string; username?: string; password: string }) =>
   callClaim<{ ok: true; username: string }>({ action: 'claim', ...b });
+
+// ───────── 공개 페이지 (/info) ─────────
+
+const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+const str = (v: unknown) => (typeof v === 'string' ? v : '');
+
+/** Anyone, signed in or not. The server decides what is public; this only shapes the answer. */
+export async function fetchPublicOverview(): Promise<PublicOverview> {
+  const { data, error } = await db().rpc('public_overview');
+  if (error) throw explain(error);
+  const d = (data ?? {}) as Record<string, unknown>;
+  const list = (v: unknown) => (Array.isArray(v) ? (v as Record<string, unknown>[]) : []);
+  if (!d.enabled) return { enabled: false, name: str(d.name) };
+  const r = (d.record ?? {}) as Record<string, unknown>;
+  return {
+    enabled: true,
+    name: str(d.name),
+    record: { year: num(r.year), games: num(r.games), wins: num(r.wins), draws: num(r.draws), losses: num(r.losses), goalsFor: num(r.goalsFor), goalsAgainst: num(r.goalsAgainst) },
+    results: list(d.results).map(x => ({ kickoff: str(x.kickoff), opponent: str(x.opponent), venue: str(x.venue) || null, ourScore: num(x.ourScore), oppScore: num(x.oppScore) })),
+    upcoming: list(d.upcoming).map(x => ({ kickoff: str(x.kickoff), opponent: str(x.opponent), venue: str(x.venue) || null })),
+  };
+}
+
+/** Admin: is the public page switched on? */
+export async function fetchPublicPageFlag(): Promise<boolean> {
+  const { data, error } = await db().from('team').select('public_page').eq('singleton', true).maybeSingle();
+  if (error) throw explain(error);
+  return data?.public_page !== false;
+}
+
+export async function setPublicPageFlag(on: boolean): Promise<void> {
+  const { data, error } = await db().from('team').update({ public_page: on }).eq('singleton', true).select('public_page');
+  if (error) throw explain(error);
+  if (!data?.length) throw explain({ code: '42501' });
+}

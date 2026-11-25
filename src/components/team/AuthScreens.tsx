@@ -134,6 +134,7 @@ export function LoginScreen() {
         <button type="button" className="link wiz-switch" onClick={() => { if (viaEmailLink) setView('code'); else { setEmailMode('up'); setView('email'); } }}>
           {viaEmailLink ? '선수 코드가 있어요' : '감독·스태프는 이메일로 가입'}
         </button>
+        <a className="link wiz-switch" href="/info">공개 페이지 보기</a>
       </>}>
       <div className="wiz-hero" aria-hidden><IconLogo width={120} height={150} /></div>
       <ul className="wiz-points">

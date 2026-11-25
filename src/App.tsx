@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Editor } from './components/Editor';
+import { PublicInfo, isInfoPath } from './components/PublicInfo';
 import { Home } from './components/Home';
 import { PublicView } from './components/PublicView';
 import { SharedImport } from './components/SharedImport';
@@ -112,5 +113,6 @@ function TeamGate({ route }: { route: Route }) {
 export default function App() {
   const route = useRoute();
   if (isAdminPath()) return <AdminApp />;
+  if (isInfoPath()) return <PublicInfo />;
   return cloudEnabled ? <TeamGate route={route} /> : <LocalApp route={route} />;
 }

@@ -194,3 +194,12 @@ export interface TacticComment {
 export const RATING_KEYS = ['shooting', 'passing', 'dribbling', 'defending', 'pace', 'stamina', 'physical', 'keeper'] as const;
 export type RatingKey = (typeof RATING_KEYS)[number];
 export type Rating = Record<RatingKey, number> & { memo?: string };
+
+/** What anyone may see without logging in (served by the public_overview() database function). */
+export interface PublicOverview {
+  enabled: boolean;
+  name: string;
+  record?: { year: number; games: number; wins: number; draws: number; losses: number; goalsFor: number; goalsAgainst: number };
+  results?: { kickoff: string; opponent: string; venue: string | null; ourScore: number; oppScore: number }[];
+  upcoming?: { kickoff: string; opponent: string; venue: string | null }[];
+}
