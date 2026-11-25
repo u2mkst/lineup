@@ -4,7 +4,7 @@ import { Home } from './components/Home';
 import { PublicView } from './components/PublicView';
 import { SharedImport } from './components/SharedImport';
 import { AdminApp, isAdminPath } from './components/admin/AdminApp';
-import { JoinScreen, LinkPlayerScreen, LoginScreen, Splash } from './components/team/AuthScreens';
+import { JoinScreen, LoginScreen, Splash } from './components/team/AuthScreens';
 import { AdminSetup, InstallGuide } from './components/team/Onboarding';
 import { BoardPage, PostPage } from './components/team/Board';
 import { EventPage } from './components/team/EventPage';
@@ -63,8 +63,6 @@ function TeamApp({ route }: { route: Route }) {
   return <Shell active={TAB_OF[route.name] ?? parent[route.name] ?? 'home'} wide={route.name === 'home'}>{page}</Shell>;
 }
 
-const SKIP_KEY = 'chukgubang:skip-link';
-const readSkip = (id: string) => { try { return localStorage.getItem(SKIP_KEY) === id; } catch { return false; } };
 const INSTALL_KEY = 'chukgubang:install-seen';
 const installSeen = () => { try { return localStorage.getItem(INSTALL_KEY) === '1'; } catch { return true; } };
 const markInstallSeen = () => { try { localStorage.setItem(INSTALL_KEY, '1'); } catch { /* ignore */ } };
@@ -76,16 +74,15 @@ function capture(route: Route) {
   if (route.name === 'setup' && route.code) savePending({ kind: 'setup', code: route.code });
 }
 
-/** Everything behind the team wall: sign in, join (link or code), (optionally) link a player, then the app. */
+/**
+ * Everything behind the team wall: sign in, join (link or code), then the app. Staff have no player profile, so nobody is
+ * asked "who are you?": players are linked by their personal code, and anyone else can link later under 내 프로필.
+ */
 function TeamGate({ route }: { route: Route }) {
   const ready = useAuth(s => s.ready);
   const user = useAuth(s => s.user);
   const member = useAuth(s => s.member);
   const isAdmin = useAuth(s => s.isAdmin);
-  // The choice not to link a player is remembered per account on this device. It is read while rendering,
-  // because the account is not known yet on the very first render after a reload.
-  const [, setSkipTick] = useState(0);
-  const skipped = !!user && readSkip(user.id);
   const [tipDone, setTipDone] = useState(installSeen);
 
   capture(route);
@@ -106,9 +103,6 @@ function TeamGate({ route }: { route: Route }) {
   if (!member) return <JoinScreen />;
   if (stray) return <Splash />;
   if (route.name === 'setup') return <AdminSetup onDone={() => { markInstallSeen(); setTipDone(true); go(paths.home); }} />;
-  if (!member.playerId && !skipped && route.name !== 'me') {
-    return <LinkPlayerScreen onSkip={() => { try { localStorage.setItem(SKIP_KEY, user.id); } catch { /* ignore */ } setSkipTick(n => n + 1); }} />;
-  }
   if (!tipDone && route.name === 'home' && shouldSuggestInstall()) {
     return <InstallGuide final onDone={() => { markInstallSeen(); setTipDone(true); }} />;
   }
